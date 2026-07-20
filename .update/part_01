@@ -1,0 +1,227 @@
+ist(st.session_state.slot_outputs.items()):
++        if isinstance(stack, str):
++            stack = [stack]
++        remaining = [name for name in stack if name not in selected]
++        if remaining:
++            st.session_state.slot_outputs[slot] = remaining
++        else:
++            st.session_state.slot_outputs.pop(slot, None)
++
++    for key in list(st.session_state.keys()):
++        if key.startswith("last_"):
++            del st.session_state[key]
++
++    return len(selected)
++
++
++def _slot_stack(slot: str) -> list[str]:
++    stack = st.session_state.slot_outputs.get(slot, [])
++    if isinstance(stack, str):
++        stack = [stack]
++        st.session_state.slot_outputs[slot] = stack
++    return stack
++
++
++def latest_slot_output(slot: str) -> str | None:
++    stack = _slot_stack(slot)
++    return stack[-1] if stack else None
++
++
++def clear_latest_slot_output(slot: str) -> str | None:
++    current = latest_slot_output(slot)
++    if current is None:
++        return None
++    remove_recorded_analyses([current])
++    stack = _slot_stack(slot)
++    if current in stack:
++        stack.remove(current)
++    if not stack:
++        st.session_state.slot_outputs.pop(slot, None)
++    return current
++
++
++def render_slot_clear(
++    slot: str,
++    label: str = "Clear latest result",
++    *,
++    key: str | None = None,
++) -> None:
++    current = latest_slot_output(slot)
++    clicked = st.button(
++        label,
++        key=key or f"clear_{slot}",
++        disabled=current is None,
++        use_container_width=True,
++        type="secondary",
++    )
++    if current:
++        st.caption(f"Latest recorded item: `{current}`")
++    if clicked:
++        removed = clear_latest_slot_output(slot)
++        st.session_state["local_clear_notice"] = (
++            f"Removed {removed!r} from generated code and the full export."
++        )
++        st.rerun()
++
++
++def analysis_action_buttons(
++    run_label: str,
++    slot: str,
++    *,
++    clear_label: str = "Clear latest result",
++    primary: bool = True,
++) -> bool:
++    run_col, clear_col = st.columns(2)
++    run_clicked = run_col.button(
++        run_label,
++        key=f"run_{slot}",
++        type="primary" if primary else "secondary",
++        use_container_width=True,
++    )
++    if run_clicked:
++        st.session_state["_active_registration_slot"] = slot
++
++    with clear_col:
++        render_slot_clear(
++            slot,
++            clear_label,
++            key=f"clear_{slot}_near_action",
++        )
++    return run_clicked
++
++
++def apply_dynamic_theme(dark_mode: bool) -> None:
++    if not dark_mode:
++        return
++
++    st.markdown(
++        """
++        <style>
++        :root {
++            color-scheme: dark;
++        }
++
++        .stApp,
++        [data-testid="stAppViewContainer"],
++        [data-testid="stHeader"] {
++            background-color: #0e1117 !important;
++            color: #f3f4f6 !important;
++        }
++
++        [data-testid="stSidebar"] {
++            background-color: #161b22 !important;
++            border-right: 1px solid #30363d !important;
++        }
++
++        [data-testid="stSidebar"] *,
++        .stApp h1, .stApp h2, .stApp h3, .stApp h4,
++        .stApp p, .stApp label, .stApp span,
++        .stApp [data-testid="stMarkdownContainer"] {
++            color: #f3f4f6;
++        }
++
++        div[data-baseweb="select"] > div,
++        div[data-baseweb="input"] > div,
++        div[data-baseweb="base-input"],
++        input, textarea {
++            background-color: #1f2937 !important;
++            color: #f9fafb !important;
++            border-color: #4b5563 !important;
++        }
++
++        div[data-baseweb="popover"],
++        div[data-baseweb="menu"],
++        ul[role="listbox"] {
++            background-color: #1f2937 !important;
++            color: #f9fafb !important;
++        }
++
++        div[data-testid="stDataFrame"],
++        div[data-testid="stTable"],
++        div[data-testid="stMetric"],
++        div[data-testid="stExpander"],
++        div[data-testid="stAlert"] {
++            background-color: #161b22 !important;
++            color: #f3f4f6 !important;
++            border-color: #30363d !important;
++        }
++
++        .stTabs [data-baseweb="tab-list"] {
++            background-color: #161b22 !important;
++            border-radius: 0.5rem;
++        }
++
++        .stTabs [data-baseweb="tab"] {
++            color: #d1d5db !important;
++        }
++
++        .stTabs [aria-selected="true"] {
++            color: #ffffff !important;
++            border-bottom-color: #60a5fa !important;
++        }
++
++        .stButton > button,
++        .stDownloadButton > button {
++            border-color: #4b5563 !important;
++        }
++
++        code, pre, .stCodeBlock {
++            background-color: #111827 !important;
++            color: #e5e7eb !important;
++        }
++
++        hr {
++            border-color: #30363d !important;
++        }
++        </style>
++        """,
++        unsafe_allow_html=True,
++    )
+ 
+ 
+ def parameter_table(results: Any) -> pd.DataFrame:
+@@ -319,6 +661,7 @@
+ 
+ 
+ def display_exception(exc: Exception) -> None:
++    st.session_state.pop("_active_registration_slot", None)
+     st.error(f"{type(exc).__name__}: {exc}")
+     st.session_state.last_error = traceback.format_exc()
+     with st.expander("Technical details"):
+@@ -504,6 +847,11 @@
+     st.header("Project")
+     st.write(f"App version: **{APP_VERSION}**")
+     st.write(f"Python: **{platform.python_version()}**")
++    st.toggle(
++        "Dark mode",
++        key="dark_mode",
++        help="Switch between the default light appearance and a dark interface.",
++    )
+ 
+     if st.session_state.df is not None:
+         st.success(
+@@ -526,6 +874,11 @@
+                 st.caption(f"{item['time']} — {item['action']}")
+         else:
+             st.caption("No analysis has been run.")
++
++apply_dynamic_theme(bool(st.session_state.dark_mode))
++
++if notice := st.session_state.pop("local_clear_notice", None):
++    st.success(notice)
+ 
+ tabs = st.tabs(
+     [
+@@ -597,6 +950,58 @@
+ 
+         st.subheader("Preview")
+         st.dataframe(df, use_container_width=True, height=420)
++
++        st.subheader("Rename variables")
++        st.caption(
++            "Rename one variable at a time. Recorded code, settings and saved "
++            "result labels are updated to use the new name."
++        )
++        with st.form("rename_variable_form", clear_on_submit=True):
++            rename_from = st.selectbox(
++                "Current variable name",
