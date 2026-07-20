@@ -1,0 +1,158 @@
+
++                list(df.columns),
++                key="rename_from_variable",
++            )
++            rename_to = st.text_input(
++                "New variable name",
++                placeholder="Enter a unique variable name",
++            )
++            rename_submitted = st.form_submit_button(
++                "Rename variable",
++                type="primary",
++            )
++
++        if rename_submitted:
++            try:
++                clean_new_name = rename_to.strip()
++                if not clean_new_name:
++                    raise ValueError("Enter a new variable name.")
++                if clean_new_name == rename_from:
++                    raise ValueError("The new name is the same as the current name.")
++                if clean_new_name in df.columns:
++                    raise ValueError(
++                        f"A variable named {clean_new_name!r} already exists."
++                    )
++                if "\n" in clean_new_name or "\r" in clean_new_name:
++                    raise ValueError("Variable names cannot contain line breaks.")
++
++                st.session_state["_active_registration_slot"] = "rename_variable"
++                rename_variable_everywhere(rename_from, clean_new_name)
++                st.session_state["data_notice"] = (
++                    f"Renamed {rename_from!r} to {clean_new_name!r}."
++                )
++                st.rerun()
++            except Exception as exc:
++                display_exception(exc)
++
++        if notice := st.session_state.pop("data_notice", None):
++            st.success(notice)
++
++        render_slot_clear(
++            "rename_variable",
++            "Clear latest rename from export",
++            key="clear_rename_variable_data_tab",
++        )
+ 
+         info_col, missing_col = st.columns(2)
+         with info_col:
+@@ -699,7 +1104,11 @@
+             )
+             new_name = st.text_input("New variable name", value=default_name)
+ 
+-            if st.button("Apply transformation", type="primary"):
++            if analysis_action_buttons(
++                "Apply transformation",
++                "transformation",
++                clear_label="Clear latest transformation",
++            ):
+                 try:
+                     series = pd.to_numeric(df[source], errors="coerce")
+                     code = ""
+@@ -771,7 +1180,11 @@
+             "Treatment",
+             ["Drop rows", "Fill with mean", "Fill with median", "Forward fill", "Backward fill", "Linear interpolation"],
+         )
+-        if st.button("Apply missing-value treatment"):
++        if analysis_action_buttons(
++            "Apply missing-value treatment",
++            "missing_values",
++            clear_label="Clear latest missing-value operation",
++        ):
+             try:
+                 if not missing_columns:
+                     raise ValueError("Select at least one column.")
+@@ -821,7 +1234,11 @@
+ 
+         col_a, col_b = st.columns(2)
+         with col_a:
+-            if st.button("Run descriptive statistics", type="primary"):
++            if analysis_action_buttons(
++                "Run descriptive statistics",
++                "descriptive_statistics",
++                clear_label="Clear latest descriptive result",
++            ):
+                 try:
+                     if not selected:
+                         raise ValueError("Select at least one variable.")
+@@ -845,7 +1262,12 @@
+ 
+         with col_b:
+             corr_method = st.selectbox("Correlation method", ["pearson", "spearman", "kendall"])
+-            if st.button("Run correlation matrix"):
++            if analysis_action_buttons(
++                "Run correlation matrix",
++                "correlation",
++                clear_label="Clear latest correlation result",
++                primary=False,
++            ):
+                 try:
+                     if len(selected) < 2:
+                         raise ValueError("Select at least two variables.")
+@@ -939,7 +1361,11 @@
+         if method == "Quantile regression":
+             quantile = st.slider("Quantile", 0.05, 0.95, 0.50, 0.05)
+ 
+-        if st.button("Estimate regression", type="primary"):
++        if analysis_action_buttons(
++            "Estimate regression",
++            "regression",
++            clear_label="Clear latest regression",
++        ):
+             try:
+                 if not x:
+                     raise ValueError("Select at least one explanatory variable.")
+@@ -1087,7 +1513,11 @@
+             automatic_lag = st.checkbox("Select lag/bandwidth automatically", value=True)
+             max_lag = None if automatic_lag else int(st.number_input("Lag/bandwidth", 0, 100, 1))
+ 
+-            if st.button("Run unit-root tests", type="primary"):
++            if analysis_action_buttons(
++                "Run unit-root tests",
++                "unit_root",
++                clear_label="Clear latest unit-root result",
++            ):
+                 try:
+                     if not test_vars:
+                         raise ValueError("Select at least one variable.")
+@@ -1213,7 +1643,11 @@
+             run_bounds = st.checkbox("Estimate UECM and bounds test", value=True)
+             bounds_case = st.selectbox("PSS bounds-test case", [1, 2, 3, 4, 5], index=2)
+ 
+-            if st.button("Estimate ARDL", type="primary"):
++            if analysis_action_buttons(
++                "Estimate ARDL",
++                "ardl",
++                clear_label="Clear latest ARDL result",
++            ):
+                 try:
+                     if not x:
+                         raise ValueError("Select at least one explanatory variable.")
+@@ -1362,7 +1796,11 @@
+                 seasonal_order = (0, 0, 0, 0)
+             arima_trend = st.selectbox("Trend", ["None", "n", "c", "t", "ct"])
+ 
+-            if st.button("Estimate ARIMA", type="primary"):
++            if analysis_action_buttons(
++                "Estimate ARIMA",
++                "arima",
++                clear_label="Clear latest ARIMA result",
++            ):
+                 try:
+                     columns = [y] + exog_vars
+                     sample = clean_numeric_frame(df, columns)
+@@ -1429,7 +1867,11 @@
+                 coint_rank = int(st.number_input("Cointegration rank", 1, max(1, len(variables)-1), 1))
+                 deterministic = st.selectbox("Deterministic specification", ["n", "co", "ci", "lo", "li", "colo", "cili"])
+ 
+-            if st.button(f"Run {multivariate_method}", type="primary"):
++            if anal
