@@ -62,7 +62,7 @@ except Exception as exc:
     LINEARMODELS_IMPORT_ERROR = str(exc)
 
 
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 DEFAULT_DATA_FILE = "cleaned_dataset.csv"
 
 st.set_page_config(
@@ -421,93 +421,364 @@ def analysis_action_buttons(
 
 
 def apply_dynamic_theme(dark_mode: bool) -> None:
+    """Apply a broad application theme and keep Matplotlib in sync."""
     if not dark_mode:
+        plt.rcdefaults()
         return
+
+    plt.rcParams.update(
+        {
+            "figure.facecolor": "#0e1117",
+            "axes.facecolor": "#111827",
+            "savefig.facecolor": "#0e1117",
+            "text.color": "#f3f4f6",
+            "axes.labelcolor": "#f3f4f6",
+            "axes.edgecolor": "#6b7280",
+            "xtick.color": "#d1d5db",
+            "ytick.color": "#d1d5db",
+            "grid.color": "#374151",
+            "legend.facecolor": "#111827",
+            "legend.edgecolor": "#4b5563",
+            "legend.labelcolor": "#f3f4f6",
+        }
+    )
 
     st.markdown(
         """
         <style>
         :root {
             color-scheme: dark;
+            --eco-bg: #0e1117;
+            --eco-panel: #161b22;
+            --eco-surface: #1f2937;
+            --eco-surface-2: #111827;
+            --eco-border: #374151;
+            --eco-border-soft: #30363d;
+            --eco-text: #f3f4f6;
+            --eco-muted: #cbd5e1;
+            --eco-accent: #60a5fa;
+        }
+
+        html, body,
+        .stApp,
+        [data-testid="stAppViewContainer"],
+        [data-testid="stMain"],
+        [data-testid="stMainBlockContainer"],
+        [data-testid="stHeader"],
+        [data-testid="stBottomBlockContainer"] {
+            background: var(--eco-bg) !important;
+            color: var(--eco-text) !important;
+        }
+
+        [data-testid="stToolbar"],
+        [data-testid="stDecoration"],
+        [data-testid="stStatusWidget"] {
+            background: transparent !important;
+            color: var(--eco-text) !important;
+        }
+
+        [data-testid="stSidebar"],
+        [data-testid="stSidebarContent"] {
+            background: var(--eco-panel) !important;
+            border-right: 1px solid var(--eco-border-soft) !important;
         }
 
         .stApp,
-        [data-testid="stAppViewContainer"],
-        [data-testid="stHeader"] {
-            background-color: #0e1117 !important;
-            color: #f3f4f6 !important;
+        .stApp p,
+        .stApp label,
+        .stApp span,
+        .stApp li,
+        .stApp h1,
+        .stApp h2,
+        .stApp h3,
+        .stApp h4,
+        .stApp h5,
+        .stApp h6,
+        [data-testid="stMarkdownContainer"],
+        [data-testid="stCaptionContainer"],
+        [data-testid="stWidgetLabel"],
+        [data-testid="stSidebar"] * {
+            color: var(--eco-text) !important;
         }
 
-        [data-testid="stSidebar"] {
-            background-color: #161b22 !important;
-            border-right: 1px solid #30363d !important;
+        [data-testid="stCaptionContainer"],
+        small,
+        .stApp .stCaption {
+            color: var(--eco-muted) !important;
         }
 
-        [data-testid="stSidebar"] *,
-        .stApp h1, .stApp h2, .stApp h3, .stApp h4,
-        .stApp p, .stApp label, .stApp span,
-        .stApp [data-testid="stMarkdownContainer"] {
-            color: #f3f4f6;
+        [data-testid="stForm"],
+        [data-testid="stExpander"],
+        details,
+        [data-testid="stMetric"],
+        [data-testid="stAlert"],
+        [data-testid="stFileUploader"],
+        [data-testid="stDataFrame"],
+        [data-testid="stTable"],
+        [data-testid="stJson"],
+        [data-testid="stCodeBlock"] {
+            background: var(--eco-panel) !important;
+            color: var(--eco-text) !important;
+            border-color: var(--eco-border) !important;
+            border-radius: 0.55rem !important;
         }
 
-        div[data-baseweb="select"] > div,
+        [data-testid="stForm"] {
+            border: 1px solid var(--eco-border) !important;
+        }
+
+        [data-testid="stExpander"] details,
+        [data-testid="stExpander"] summary,
+        details > summary {
+            background: var(--eco-panel) !important;
+            color: var(--eco-text) !important;
+        }
+
+        div[data-baseweb="input"],
         div[data-baseweb="input"] > div,
         div[data-baseweb="base-input"],
-        input, textarea {
-            background-color: #1f2937 !important;
-            color: #f9fafb !important;
+        div[data-baseweb="textarea"],
+        div[data-baseweb="textarea"] > div,
+        div[data-baseweb="select"] > div,
+        div[data-baseweb="select"] input,
+        [data-testid="stTextInput"] input,
+        [data-testid="stNumberInput"] input,
+        [data-testid="stTextArea"] textarea,
+        [data-testid="stDateInput"] input,
+        [data-testid="stTimeInput"] input {
+            background: var(--eco-surface) !important;
+            color: var(--eco-text) !important;
             border-color: #4b5563 !important;
+            caret-color: var(--eco-text) !important;
+        }
+
+        input::placeholder,
+        textarea::placeholder {
+            color: #94a3b8 !important;
+            opacity: 1 !important;
         }
 
         div[data-baseweb="popover"],
         div[data-baseweb="menu"],
-        ul[role="listbox"] {
-            background-color: #1f2937 !important;
-            color: #f9fafb !important;
+        div[data-baseweb="modal"],
+        [data-baseweb="tooltip"],
+        ul[role="listbox"],
+        li[role="option"] {
+            background: var(--eco-surface) !important;
+            color: var(--eco-text) !important;
+            border-color: var(--eco-border) !important;
         }
 
-        div[data-testid="stDataFrame"],
-        div[data-testid="stTable"],
-        div[data-testid="stMetric"],
-        div[data-testid="stExpander"],
-        div[data-testid="stAlert"] {
-            background-color: #161b22 !important;
-            color: #f3f4f6 !important;
-            border-color: #30363d !important;
+        li[role="option"]:hover,
+        li[role="option"][aria-selected="true"] {
+            background: #334155 !important;
         }
 
-        .stTabs [data-baseweb="tab-list"] {
-            background-color: #161b22 !important;
-            border-radius: 0.5rem;
-        }
-
-        .stTabs [data-baseweb="tab"] {
-            color: #d1d5db !important;
-        }
-
-        .stTabs [aria-selected="true"] {
-            color: #ffffff !important;
-            border-bottom-color: #60a5fa !important;
-        }
-
-        .stButton > button,
-        .stDownloadButton > button {
+        [data-testid="stFileUploaderDropzone"] {
+            background: var(--eco-surface-2) !important;
+            color: var(--eco-text) !important;
             border-color: #4b5563 !important;
         }
 
-        code, pre, .stCodeBlock {
-            background-color: #111827 !important;
+        [data-testid="stFileUploaderDropzone"] button,
+        [data-testid="stFileUploaderDropzoneInstructions"] * {
+            color: var(--eco-text) !important;
+        }
+
+        [data-testid="stCheckbox"],
+        [data-testid="stRadio"],
+        [data-testid="stToggle"],
+        [data-testid="stSlider"] {
+            color: var(--eco-text) !important;
+        }
+
+        [data-testid="stSlider"] [role="slider"] {
+            box-shadow: 0 0 0 1px var(--eco-border) !important;
+        }
+
+        .stTabs [data-baseweb="tab-list"] {
+            background: var(--eco-panel) !important;
+            border: 1px solid var(--eco-border-soft) !important;
+            border-radius: 0.55rem !important;
+            gap: 0.15rem;
+            padding: 0.2rem;
+        }
+
+        .stTabs [data-baseweb="tab"] {
+            background: transparent !important;
+            color: var(--eco-muted) !important;
+        }
+
+        .stTabs [data-baseweb="tab"]:hover {
+            background: #1e293b !important;
+        }
+
+        .stTabs [aria-selected="true"] {
+            background: #243244 !important;
+            color: #ffffff !important;
+            border-bottom-color: var(--eco-accent) !important;
+        }
+
+        .stButton > button,
+        .stDownloadButton > button,
+        [data-testid="baseButton-secondary"],
+        [data-testid="baseButton-headerNoPadding"] {
+            background: var(--eco-surface) !important;
+            color: var(--eco-text) !important;
+            border-color: #4b5563 !important;
+        }
+
+        .stButton > button:hover,
+        .stDownloadButton > button:hover {
+            background: #334155 !important;
+            border-color: var(--eco-accent) !important;
+            color: #ffffff !important;
+        }
+
+        [data-testid="baseButton-primary"],
+        button[kind="primary"] {
+            background: #2563eb !important;
+            color: #ffffff !important;
+            border-color: #3b82f6 !important;
+        }
+
+        button:disabled,
+        .stButton > button:disabled,
+        .stDownloadButton > button:disabled {
+            background: #202938 !important;
+            color: #7c8798 !important;
+            border-color: #374151 !important;
+            opacity: 0.8 !important;
+        }
+
+        [data-testid="stDataFrame"] > div,
+        [data-testid="stDataFrame"] canvas,
+        [data-testid="stTable"] table,
+        [data-testid="stTable"] th,
+        [data-testid="stTable"] td {
+            background: var(--eco-surface-2) !important;
+            color: var(--eco-text) !important;
+            border-color: var(--eco-border) !important;
+        }
+
+        [data-testid="stDataFrame"] [role="columnheader"],
+        [data-testid="stDataFrame"] [role="gridcell"] {
+            color: var(--eco-text) !important;
+            border-color: var(--eco-border) !important;
+        }
+
+        [data-testid="stMetricValue"],
+        [data-testid="stMetricDelta"],
+        [data-testid="stMetricLabel"] {
+            color: var(--eco-text) !important;
+        }
+
+        [data-testid="stAlert"] svg,
+        [data-testid="stAlert"] div {
+            color: var(--eco-text) !important;
+        }
+
+        [data-testid="stCodeBlock"],
+        pre,
+        code,
+        .stCodeBlock {
+            background: var(--eco-surface-2) !important;
+            color: #e5e7eb !important;
+            border-color: var(--eco-border) !important;
+        }
+
+        [data-testid="stJson"] * {
             color: #e5e7eb !important;
         }
 
+        [data-testid="stPlotlyChart"],
+        [data-testid="stPyplotGlobalUse"] {
+            background: var(--eco-bg) !important;
+        }
+
+        a {
+            color: #93c5fd !important;
+        }
+
         hr {
-            border-color: #30363d !important;
+            border-color: var(--eco-border-soft) !important;
+        }
+
+        ::-webkit-scrollbar {
+            width: 11px;
+            height: 11px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--eco-bg);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 8px;
+            border: 2px solid var(--eco-bg);
         }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
+
+def display_dataframe(data: Any, **kwargs: Any) -> None:
+    """Display DataFrames with readable cell and header colours in dark mode."""
+    if not st.session_state.get("dark_mode", False):
+        st.dataframe(data, **kwargs)
+        return
+
+    if isinstance(data, pd.Series):
+        data = data.to_frame()
+
+    if isinstance(data, pd.DataFrame):
+        styled = (
+            data.style
+            .set_properties(
+                **{
+                    "background-color": "#111827",
+                    "color": "#f3f4f6",
+                    "border-color": "#374151",
+                }
+            )
+            .set_table_styles(
+                [
+                    {
+                        "selector": "th",
+                        "props": [
+                            ("background-color", "#1f2937"),
+                            ("color", "#ffffff"),
+                            ("border-color", "#4b5563"),
+                        ],
+                    },
+                    {
+                        "selector": "td",
+                        "props": [("border-color", "#374151")],
+                    },
+                ]
+            )
+        )
+        st.dataframe(styled, **kwargs)
+        return
+
+    st.dataframe(data, **kwargs)
+
+
+def themed_subplots(*args: Any, **kwargs: Any) -> tuple[Any, Any]:
+    """Create Matplotlib figures that match the selected application mode."""
+    fig, ax = plt.subplots(*args, **kwargs)
+    if st.session_state.get("dark_mode", False):
+        fig.patch.set_facecolor("#0e1117")
+        ax.set_facecolor("#111827")
+        ax.tick_params(colors="#d1d5db")
+        for spine in ax.spines.values():
+            spine.set_color("#6b7280")
+        ax.xaxis.label.set_color("#f3f4f6")
+        ax.yaxis.label.set_color("#f3f4f6")
+        ax.title.set_color("#f3f4f6")
+    return fig, ax
 
 def parameter_table(results: Any) -> pd.DataFrame:
     params = pd.Series(results.params)
@@ -949,7 +1220,7 @@ with tabs[0]:
         c4.metric("Missing cells", f"{int(df.isna().sum().sum()):,}")
 
         st.subheader("Preview")
-        st.dataframe(df, use_container_width=True, height=420)
+        display_dataframe(df, use_container_width=True, height=420)
 
         st.subheader("Rename variables")
         st.caption(
@@ -1013,7 +1284,7 @@ with tabs[0]:
                     "Unique": df.nunique(dropna=True),
                 }
             )
-            st.dataframe(info, use_container_width=True)
+            display_dataframe(info, use_container_width=True)
 
         with missing_col:
             st.subheader("Missing values")
@@ -1023,7 +1294,7 @@ with tabs[0]:
                     "Percent": df.isna().mean() * 100,
                 }
             ).sort_values("Missing", ascending=False)
-            st.dataframe(missing, use_container_width=True)
+            display_dataframe(missing, use_container_width=True)
 
         st.subheader("Sort and sample")
         sort_col, ascending = st.columns([3, 1])
@@ -1287,11 +1558,11 @@ print(correlation)
 
         if "last_descriptive" in st.session_state:
             st.subheader("Descriptive statistics")
-            st.dataframe(st.session_state.last_descriptive, use_container_width=True)
+            display_dataframe(st.session_state.last_descriptive, use_container_width=True)
 
         if "last_correlation" in st.session_state:
             st.subheader("Correlation matrix")
-            st.dataframe(st.session_state.last_correlation, use_container_width=True)
+            display_dataframe(st.session_state.last_correlation, use_container_width=True)
 
         st.subheader("Charts")
         chart_type = st.selectbox("Chart", ["Time/line plot", "Histogram", "Scatter plot", "Box plot"])
@@ -1299,7 +1570,7 @@ print(correlation)
             x_chart = st.selectbox("X variable", numeric, key="scatter_x")
             y_chart = st.selectbox("Y variable", numeric, index=min(1, len(numeric)-1), key="scatter_y")
             if st.button("Draw chart"):
-                fig, ax = plt.subplots()
+                fig, ax = themed_subplots()
                 ax.scatter(df[x_chart], df[y_chart])
                 ax.set_xlabel(x_chart)
                 ax.set_ylabel(y_chart)
@@ -1312,7 +1583,7 @@ print(correlation)
                 if not chart_vars:
                     st.warning("Select at least one variable.")
                 else:
-                    fig, ax = plt.subplots()
+                    fig, ax = themed_subplots()
                     if chart_type == "Time/line plot":
                         df[chart_vars].plot(ax=ax)
                     elif chart_type == "Histogram":
@@ -1431,7 +1702,7 @@ with tabs[3]:
                 table = parameter_table(results)
                 summary = summary_text(results)
                 st.subheader("Coefficient table")
-                st.dataframe(table, use_container_width=True)
+                display_dataframe(table, use_container_width=True)
                 st.subheader("Model summary")
                 st.text(summary)
 
@@ -1473,9 +1744,9 @@ model = {model_code}
                 if method in {"OLS", "WLS", "GLS"}:
                     diagnostic, vif = ols_diagnostics(results, int(hac_lags))
                     st.subheader("Diagnostics")
-                    st.dataframe(diagnostic, use_container_width=True)
+                    display_dataframe(diagnostic, use_container_width=True)
                     st.subheader("Variance inflation factors")
-                    st.dataframe(vif, use_container_width=True)
+                    display_dataframe(vif, use_container_width=True)
                     st.session_state.results[result_name + "_diagnostics"] = diagnostic
                     st.session_state.results[result_name + "_vif"] = vif
             except Exception as exc:
@@ -1540,7 +1811,7 @@ with tabs[4]:
                             )
                         rows.append(result)
                     table = pd.DataFrame(rows).set_index(["Variable", "Form"])
-                    st.dataframe(table, use_container_width=True)
+                    display_dataframe(table, use_container_width=True)
 
                     code = f"""
 variables = {test_vars!r}
@@ -1701,7 +1972,7 @@ model = ARDL(
                     table = parameter_table(results)
                     text = summary_text(results)
                     st.write("Selected order:", model.ardl_order)
-                    st.dataframe(table, use_container_width=True)
+                    display_dataframe(table, use_container_width=True)
                     st.text(text)
 
                     code = f"""
@@ -1743,9 +2014,9 @@ print(results.summary())
                                 }
                             )
                             st.subheader("Bounds test")
-                            st.dataframe(bounds_table, use_container_width=True)
+                            display_dataframe(bounds_table, use_container_width=True)
                             st.subheader("Bounds critical values")
-                            st.dataframe(bounds.crit_vals, use_container_width=True)
+                            display_dataframe(bounds.crit_vals, use_container_width=True)
                             st.subheader("Normalized cointegrating relationship")
                             st.text(uecm_results.ci_summary().as_text())
                             st.subheader("UECM results")
@@ -1816,7 +2087,7 @@ print(bounds)
                     results = model.fit()
                     table = parameter_table(results)
                     text = summary_text(results)
-                    st.dataframe(table, use_container_width=True)
+                    display_dataframe(table, use_container_width=True)
                     st.text(text)
 
                     code = f"""
@@ -1886,7 +2157,7 @@ print(results.summary())
                         text = summary_text(results)
                         roots = pd.DataFrame({"Root": results.roots, "Modulus": np.abs(results.roots)})
                         st.text(text)
-                        st.dataframe(roots, use_container_width=True)
+                        display_dataframe(roots, use_container_width=True)
                         st.write("Stable:", results.is_stable(verbose=False))
                         code = f"""
 sample = data[{variables!r}].apply(pd.to_numeric, errors="coerce").dropna()
@@ -1917,7 +2188,7 @@ print("Stable:", results.is_stable())
                             },
                             index=[f"r ≤ {i}" for i in range(len(variables))],
                         )
-                        st.dataframe(table, use_container_width=True)
+                        display_dataframe(table, use_container_width=True)
                         code = f"""
 sample = data[{variables!r}].apply(pd.to_numeric, errors="coerce").dropna()
 result = coint_johansen(sample, det_order={det_order}, k_ar_diff={k_ar_diff})
@@ -1942,9 +2213,9 @@ print(result.cvm)
                         beta = pd.DataFrame(results.beta, index=variables)
                         st.text(text)
                         st.subheader("Adjustment coefficients (alpha)")
-                        st.dataframe(alpha, use_container_width=True)
+                        display_dataframe(alpha, use_container_width=True)
                         st.subheader("Cointegrating vectors (beta)")
-                        st.dataframe(beta, use_container_width=True)
+                        display_dataframe(beta, use_container_width=True)
                         code = f"""
 sample = data[{variables!r}].apply(pd.to_numeric, errors="coerce").dropna()
 model = VECM(
@@ -1998,7 +2269,7 @@ print(results.summary())
                             }
                         )
                     table = pd.DataFrame(rows).set_index("Lag")
-                    st.dataframe(table, use_container_width=True)
+                    display_dataframe(table, use_container_width=True)
                     code = f"""
 sample = data[{[target, cause]!r}].apply(pd.to_numeric, errors="coerce").dropna()
 granger_results = grangercausalitytests(
@@ -2103,7 +2374,7 @@ with tabs[5]:
                         results = model.fit(**fit_kwargs)
                         table = linearmodels_parameter_table(results)
                         text = str(results.summary)
-                        st.dataframe(table, use_container_width=True)
+                        display_dataframe(table, use_container_width=True)
                         st.text(text)
 
                         code = f"""
@@ -2184,7 +2455,7 @@ print(results.summary)
                         results = model.fit(cov_type=iv_cov)
                         table = linearmodels_parameter_table(results)
                         text = str(results.summary)
-                        st.dataframe(table, use_container_width=True)
+                        display_dataframe(table, use_container_width=True)
                         st.text(text)
 
                         code = f"""
@@ -2267,10 +2538,10 @@ with tabs[6]:
                         }
                     )
                     text = str(results.summary())
-                    st.dataframe(table, use_container_width=True)
+                    display_dataframe(table, use_container_width=True)
                     st.text(text)
 
-                    fig, ax = plt.subplots()
+                    fig, ax = themed_subplots()
                     results.conditional_volatility.plot(ax=ax)
                     ax.set_title("Conditional volatility")
                     st.pyplot(fig)
