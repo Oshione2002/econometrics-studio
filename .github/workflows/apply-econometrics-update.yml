@@ -1,0 +1,43 @@
+name: Apply Econometrics Studio update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-econometrics-update.yml'
+      - '.update/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct and apply application patch
+        shell: bash
+        run: |
+          cat .update/part_00 .update/part_01 .update/part_02 .update/part_03 > /tmp/app_v1_2.patch
+          git apply --reject --whitespace=nowarn /tmp/app_v1_2.patch || true
+          rm -f app.py.rej
+          grep -q 'APP_VERSION = "1.2.0"' app.py
+          python -m py_compile app.py
+
+      - name: Commit updated application
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.py
+          if git diff --cached --quiet; then
+            echo 'No application changes to commit.'
+          else
+            git commit -m 'Upgrade Econometrics Studio to v1.2.0'
+            git push origin main
+          fi
