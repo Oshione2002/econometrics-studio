@@ -62,7 +62,7 @@ except Exception as exc:
     LINEARMODELS_IMPORT_ERROR = str(exc)
 
 
-APP_VERSION = "1.2.1"
+APP_VERSION = "1.3.0"
 DEFAULT_DATA_FILE = "cleaned_dataset.csv"
 
 st.set_page_config(
@@ -85,6 +85,10 @@ def init_state() -> None:
         "settings_log": [],
         "slot_outputs": {},
         "dark_mode": False,
+        "active_main_page": "1. Data",
+        "active_ts_page": "Unit roots",
+        "active_panel_page": "Panel models",
+        "chart_state": None,
         "last_error": None,
     }
     for key, value in defaults.items():
@@ -421,364 +425,113 @@ def analysis_action_buttons(
 
 
 def apply_dynamic_theme(dark_mode: bool) -> None:
-    """Apply a broad application theme and keep Matplotlib in sync."""
+    """Apply the interface theme and keep Matplotlib charts synchronized."""
     if not dark_mode:
         plt.rcdefaults()
         return
 
-    plt.rcParams.update(
-        {
-            "figure.facecolor": "#0e1117",
-            "axes.facecolor": "#111827",
-            "savefig.facecolor": "#0e1117",
-            "text.color": "#f3f4f6",
-            "axes.labelcolor": "#f3f4f6",
-            "axes.edgecolor": "#6b7280",
-            "xtick.color": "#d1d5db",
-            "ytick.color": "#d1d5db",
-            "grid.color": "#374151",
-            "legend.facecolor": "#111827",
-            "legend.edgecolor": "#4b5563",
-            "legend.labelcolor": "#f3f4f6",
-        }
-    )
+    plt.rcParams.update({
+        "figure.facecolor": "#0e1117",
+        "axes.facecolor": "#111827",
+        "savefig.facecolor": "#0e1117",
+        "text.color": "#f3f4f6",
+        "axes.labelcolor": "#f3f4f6",
+        "axes.edgecolor": "#6b7280",
+        "xtick.color": "#d1d5db",
+        "ytick.color": "#d1d5db",
+        "grid.color": "#374151",
+        "legend.facecolor": "#111827",
+        "legend.edgecolor": "#4b5563",
+        "legend.labelcolor": "#f3f4f6",
+    })
 
-    st.markdown(
-        """
-        <style>
-        :root {
-            color-scheme: dark;
-            --eco-bg: #0e1117;
-            --eco-panel: #161b22;
-            --eco-surface: #1f2937;
-            --eco-surface-2: #111827;
-            --eco-border: #374151;
-            --eco-border-soft: #30363d;
-            --eco-text: #f3f4f6;
-            --eco-muted: #cbd5e1;
-            --eco-accent: #60a5fa;
-        }
-
-        html, body,
-        .stApp,
-        [data-testid="stAppViewContainer"],
-        [data-testid="stMain"],
-        [data-testid="stMainBlockContainer"],
-        [data-testid="stHeader"],
-        [data-testid="stBottomBlockContainer"] {
-            background: var(--eco-bg) !important;
-            color: var(--eco-text) !important;
-        }
-
-        [data-testid="stToolbar"],
-        [data-testid="stDecoration"],
-        [data-testid="stStatusWidget"] {
-            background: transparent !important;
-            color: var(--eco-text) !important;
-        }
-
-        [data-testid="stSidebar"],
-        [data-testid="stSidebarContent"] {
-            background: var(--eco-panel) !important;
-            border-right: 1px solid var(--eco-border-soft) !important;
-        }
-
-        .stApp,
-        .stApp p,
-        .stApp label,
-        .stApp span,
-        .stApp li,
-        .stApp h1,
-        .stApp h2,
-        .stApp h3,
-        .stApp h4,
-        .stApp h5,
-        .stApp h6,
-        [data-testid="stMarkdownContainer"],
-        [data-testid="stCaptionContainer"],
-        [data-testid="stWidgetLabel"],
-        [data-testid="stSidebar"] * {
-            color: var(--eco-text) !important;
-        }
-
-        [data-testid="stCaptionContainer"],
-        small,
-        .stApp .stCaption {
-            color: var(--eco-muted) !important;
-        }
-
-        [data-testid="stForm"],
-        [data-testid="stExpander"],
-        details,
-        [data-testid="stMetric"],
-        [data-testid="stAlert"],
-        [data-testid="stFileUploader"],
-        [data-testid="stDataFrame"],
-        [data-testid="stTable"],
-        [data-testid="stJson"],
-        [data-testid="stCodeBlock"] {
-            background: var(--eco-panel) !important;
-            color: var(--eco-text) !important;
-            border-color: var(--eco-border) !important;
-            border-radius: 0.55rem !important;
-        }
-
-        [data-testid="stForm"] {
-            border: 1px solid var(--eco-border) !important;
-        }
-
-        [data-testid="stExpander"] details,
-        [data-testid="stExpander"] summary,
-        details > summary {
-            background: var(--eco-panel) !important;
-            color: var(--eco-text) !important;
-        }
-
-        div[data-baseweb="input"],
-        div[data-baseweb="input"] > div,
-        div[data-baseweb="base-input"],
-        div[data-baseweb="textarea"],
-        div[data-baseweb="textarea"] > div,
-        div[data-baseweb="select"] > div,
-        div[data-baseweb="select"] input,
-        [data-testid="stTextInput"] input,
-        [data-testid="stNumberInput"] input,
-        [data-testid="stTextArea"] textarea,
-        [data-testid="stDateInput"] input,
-        [data-testid="stTimeInput"] input {
-            background: var(--eco-surface) !important;
-            color: var(--eco-text) !important;
-            border-color: #4b5563 !important;
-            caret-color: var(--eco-text) !important;
-        }
-
-        input::placeholder,
-        textarea::placeholder {
-            color: #94a3b8 !important;
-            opacity: 1 !important;
-        }
-
-        div[data-baseweb="popover"],
-        div[data-baseweb="menu"],
-        div[data-baseweb="modal"],
-        [data-baseweb="tooltip"],
-        ul[role="listbox"],
-        li[role="option"] {
-            background: var(--eco-surface) !important;
-            color: var(--eco-text) !important;
-            border-color: var(--eco-border) !important;
-        }
-
-        li[role="option"]:hover,
-        li[role="option"][aria-selected="true"] {
-            background: #334155 !important;
-        }
-
-        [data-testid="stFileUploaderDropzone"] {
-            background: var(--eco-surface-2) !important;
-            color: var(--eco-text) !important;
-            border-color: #4b5563 !important;
-        }
-
-        [data-testid="stFileUploaderDropzone"] button,
-        [data-testid="stFileUploaderDropzoneInstructions"] * {
-            color: var(--eco-text) !important;
-        }
-
-        [data-testid="stCheckbox"],
-        [data-testid="stRadio"],
-        [data-testid="stToggle"],
-        [data-testid="stSlider"] {
-            color: var(--eco-text) !important;
-        }
-
-        [data-testid="stSlider"] [role="slider"] {
-            box-shadow: 0 0 0 1px var(--eco-border) !important;
-        }
-
-        .stTabs [data-baseweb="tab-list"] {
-            background: var(--eco-panel) !important;
-            border: 1px solid var(--eco-border-soft) !important;
-            border-radius: 0.55rem !important;
-            gap: 0.15rem;
-            padding: 0.2rem;
-        }
-
-        .stTabs [data-baseweb="tab"] {
-            background: transparent !important;
-            color: var(--eco-muted) !important;
-        }
-
-        .stTabs [data-baseweb="tab"]:hover {
-            background: #1e293b !important;
-        }
-
-        .stTabs [aria-selected="true"] {
-            background: #243244 !important;
-            color: #ffffff !important;
-            border-bottom-color: var(--eco-accent) !important;
-        }
-
-        .stButton > button,
-        .stDownloadButton > button,
-        [data-testid="baseButton-secondary"],
-        [data-testid="baseButton-headerNoPadding"] {
-            background: var(--eco-surface) !important;
-            color: var(--eco-text) !important;
-            border-color: #4b5563 !important;
-        }
-
-        .stButton > button:hover,
-        .stDownloadButton > button:hover {
-            background: #334155 !important;
-            border-color: var(--eco-accent) !important;
-            color: #ffffff !important;
-        }
-
-        [data-testid="baseButton-primary"],
-        button[kind="primary"] {
-            background: #2563eb !important;
-            color: #ffffff !important;
-            border-color: #3b82f6 !important;
-        }
-
-        button:disabled,
-        .stButton > button:disabled,
-        .stDownloadButton > button:disabled {
-            background: #202938 !important;
-            color: #7c8798 !important;
-            border-color: #374151 !important;
-            opacity: 0.8 !important;
-        }
-
-        [data-testid="stDataFrame"] > div,
-        [data-testid="stDataFrame"] canvas,
-        [data-testid="stTable"] table,
-        [data-testid="stTable"] th,
-        [data-testid="stTable"] td {
-            background: var(--eco-surface-2) !important;
-            color: var(--eco-text) !important;
-            border-color: var(--eco-border) !important;
-        }
-
-        [data-testid="stDataFrame"] [role="columnheader"],
-        [data-testid="stDataFrame"] [role="gridcell"] {
-            color: var(--eco-text) !important;
-            border-color: var(--eco-border) !important;
-        }
-
-        [data-testid="stMetricValue"],
-        [data-testid="stMetricDelta"],
-        [data-testid="stMetricLabel"] {
-            color: var(--eco-text) !important;
-        }
-
-        [data-testid="stAlert"] svg,
-        [data-testid="stAlert"] div {
-            color: var(--eco-text) !important;
-        }
-
-        [data-testid="stCodeBlock"],
-        pre,
-        code,
-        .stCodeBlock {
-            background: var(--eco-surface-2) !important;
-            color: #e5e7eb !important;
-            border-color: var(--eco-border) !important;
-        }
-
-        [data-testid="stJson"] * {
-            color: #e5e7eb !important;
-        }
-
-        [data-testid="stPlotlyChart"],
-        [data-testid="stPyplotGlobalUse"] {
-            background: var(--eco-bg) !important;
-        }
-
-        a {
-            color: #93c5fd !important;
-        }
-
-        hr {
-            border-color: var(--eco-border-soft) !important;
-        }
-
-        ::-webkit-scrollbar {
-            width: 11px;
-            height: 11px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: var(--eco-bg);
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #475569;
-            border-radius: 8px;
-            border: 2px solid var(--eco-bg);
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown("""
+    <style>
+    :root { color-scheme: dark; --eco-bg:#0e1117; --eco-panel:#161b22;
+      --eco-surface:#1f2937; --eco-surface-2:#111827; --eco-border:#374151;
+      --eco-text:#f3f4f6; --eco-muted:#cbd5e1; }
+    html,body,.stApp,[data-testid="stAppViewContainer"],[data-testid="stMain"],
+    [data-testid="stMainBlockContainer"],[data-testid="stHeader"]{
+      background:var(--eco-bg)!important;color:var(--eco-text)!important}
+    [data-testid="stSidebar"],[data-testid="stSidebarContent"]{
+      background:var(--eco-panel)!important;border-right:1px solid #30363d!important}
+    .stApp,.stApp p,.stApp label,.stApp span,.stApp li,.stApp h1,.stApp h2,
+    .stApp h3,.stApp h4,.stApp h5,.stApp h6,[data-testid="stMarkdownContainer"],
+    [data-testid="stCaptionContainer"],[data-testid="stWidgetLabel"],[data-testid="stSidebar"] *{
+      color:var(--eco-text)!important}
+    [data-testid="stCaptionContainer"],small,.stApp .stCaption{color:var(--eco-muted)!important}
+    [data-testid="stForm"],[data-testid="stExpander"],details,[data-testid="stMetric"],
+    [data-testid="stAlert"],[data-testid="stFileUploader"],[data-testid="stCodeBlock"]{
+      background:var(--eco-panel)!important;color:var(--eco-text)!important;border-color:var(--eco-border)!important}
+    div[data-baseweb="select"]>div,div[data-baseweb="input"]>div,
+    div[data-baseweb="base-input"],div[data-baseweb="textarea"],input,textarea{
+      background:var(--eco-surface)!important;color:var(--eco-text)!important;border-color:#4b5563!important}
+    input::placeholder,textarea::placeholder{color:#94a3b8!important}
+    div[data-baseweb="popover"],div[data-baseweb="menu"],ul[role="listbox"],[role="option"]{
+      background:var(--eco-surface)!important;color:var(--eco-text)!important}
+    [role="option"]:hover,[aria-selected="true"][role="option"]{background:#374151!important}
+    [data-testid="stFileUploaderDropzone"]{background:var(--eco-surface-2)!important;border-color:#4b5563!important}
+    .stButton>button,.stDownloadButton>button{border-color:#4b5563!important;color:var(--eco-text)!important}
+    .stButton>button[kind="primary"],.stDownloadButton>button[kind="primary"]{background:#2563eb!important;border-color:#3b82f6!important}
+    .stButton>button:disabled,.stDownloadButton>button:disabled{background:#1f2937!important;color:#6b7280!important}
+    [data-testid="stCodeBlock"],pre,code{background:var(--eco-surface-2)!important;color:#e5e7eb!important}
+    div[data-testid="stRadio"]>div[role="radiogroup"]{gap:.35rem!important;flex-wrap:wrap!important;
+      background:var(--eco-panel)!important;border:1px solid #30363d!important;border-radius:.65rem!important;padding:.35rem!important}
+    div[data-testid="stRadio"] label{background:transparent!important;border-radius:.45rem!important;padding:.25rem .55rem!important}
+    div[data-testid="stRadio"] label:has(input:checked){background:#1d4ed8!important}
+    .eco-table-wrap{width:100%;overflow:auto;border:1px solid var(--eco-border);border-radius:.6rem;
+      background:var(--eco-surface-2);margin:.25rem 0 1rem}
+    table.eco-data-table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0;
+      color:var(--eco-text)!important;background:var(--eco-surface-2)!important;font-size:.88rem}
+    table.eco-data-table thead th{position:sticky;top:0;z-index:2;background:#1f2937!important;
+      color:#f8fafc!important;font-weight:650;border-bottom:1px solid #4b5563;white-space:nowrap}
+    table.eco-data-table tbody th{position:sticky;left:0;z-index:1;background:#172033!important;
+      color:#e2e8f0!important;font-weight:600}
+    table.eco-data-table th,table.eco-data-table td{padding:.62rem .72rem;border-right:1px solid #263244;
+      border-bottom:1px solid #263244;text-align:right;white-space:nowrap}
+    table.eco-data-table tbody tr:nth-child(even) td{background:#121c2d!important}
+    table.eco-data-table tbody tr:hover td,table.eco-data-table tbody tr:hover th{background:#24324a!important}
+    hr{border-color:#30363d!important}
+    ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:#111827}
+    ::-webkit-scrollbar-thumb{background:#4b5563;border-radius:8px}
+    </style>
+    """, unsafe_allow_html=True)
 
 
-def display_dataframe(data: Any, **kwargs: Any) -> None:
-    """Display DataFrames with readable cell and header colours in dark mode."""
+def display_dataframe(data: Any, use_container_width: bool = True,
+                      height: int | None = None, **kwargs: Any) -> None:
+    """Render readable tables in both light and dark modes."""
     if not st.session_state.get("dark_mode", False):
-        st.dataframe(data, **kwargs)
+        opts = dict(kwargs)
+        opts["use_container_width"] = use_container_width
+        if height is not None:
+            opts["height"] = height
+        st.dataframe(data, **opts)
         return
-
     if isinstance(data, pd.Series):
-        data = data.to_frame()
-
-    if isinstance(data, pd.DataFrame):
-        styled = (
-            data.style
-            .set_properties(
-                **{
-                    "background-color": "#111827",
-                    "color": "#f3f4f6",
-                    "border-color": "#374151",
-                }
-            )
-            .set_table_styles(
-                [
-                    {
-                        "selector": "th",
-                        "props": [
-                            ("background-color", "#1f2937"),
-                            ("color", "#ffffff"),
-                            ("border-color", "#4b5563"),
-                        ],
-                    },
-                    {
-                        "selector": "td",
-                        "props": [("border-color", "#374151")],
-                    },
-                ]
-            )
-        )
-        st.dataframe(styled, **kwargs)
-        return
-
-    st.dataframe(data, **kwargs)
+        frame = data.to_frame()
+    elif isinstance(data, pd.DataFrame):
+        frame = data.copy()
+    else:
+        try:
+            frame = pd.DataFrame(data)
+        except Exception:
+            st.code(str(data), language="text")
+            return
+    def fmt(value: Any) -> str:
+        if pd.isna(value): return ""
+        if isinstance(value, (float, np.floating)): return f"{float(value):,.6f}"
+        return str(value)
+    formatted = frame.map(fmt)
+    html = formatted.to_html(classes="eco-data-table", border=0, escape=True)
+    max_height = f"max-height:{int(height)}px;" if height else "max-height:520px;"
+    st.markdown(f'<div class="eco-table-wrap" style="{max_height}">{html}</div>',
+                unsafe_allow_html=True)
 
 
-def themed_subplots(*args: Any, **kwargs: Any) -> tuple[Any, Any]:
-    """Create Matplotlib figures that match the selected application mode."""
-    fig, ax = plt.subplots(*args, **kwargs)
-    if st.session_state.get("dark_mode", False):
-        fig.patch.set_facecolor("#0e1117")
-        ax.set_facecolor("#111827")
-        ax.tick_params(colors="#d1d5db")
-        for spine in ax.spines.values():
-            spine.set_color("#6b7280")
-        ax.xaxis.label.set_color("#f3f4f6")
-        ax.yaxis.label.set_color("#f3f4f6")
-        ax.title.set_color("#f3f4f6")
-    return fig, ax
+def display_json(data: Any) -> None:
+    st.code(json.dumps(data, indent=2, default=str), language="json")
+
 
 def parameter_table(results: Any) -> pd.DataFrame:
     params = pd.Series(results.params)
@@ -1151,23 +904,15 @@ apply_dynamic_theme(bool(st.session_state.dark_mode))
 if notice := st.session_state.pop("local_clear_notice", None):
     st.success(notice)
 
-tabs = st.tabs(
-    [
-        "1. Data",
-        "2. Transform",
-        "3. Descriptive",
-        "4. Regression",
-        "5. Time Series",
-        "6. Panel & IV",
-        "7. Volatility",
-        "8. Export",
-    ]
-)
+MAIN_PAGES = ["1. Data", "2. Transform", "3. Descriptive", "4. Regression",
+    "5. Time Series", "6. Panel & IV", "7. Volatility", "8. Export"]
+active_main_page = st.radio("Workspace", MAIN_PAGES, key="active_main_page",
+    horizontal=True, label_visibility="collapsed")
 
 # ---------------------------------------------------------------------------
 # 1. DATA
 # ---------------------------------------------------------------------------
-with tabs[0]:
+if active_main_page == '1. Data':
     st.header("Data manager")
     uploaded = st.file_uploader(
         "Upload CSV, Excel or Stata data",
@@ -1321,7 +1066,7 @@ with tabs[0]:
 # ---------------------------------------------------------------------------
 # 2. TRANSFORM
 # ---------------------------------------------------------------------------
-with tabs[1]:
+if active_main_page == '2. Transform':
     st.header("Variable transformations")
     df = require_data()
     if df is not None:
@@ -1496,7 +1241,7 @@ with tabs[1]:
 # ---------------------------------------------------------------------------
 # 3. DESCRIPTIVE
 # ---------------------------------------------------------------------------
-with tabs[2]:
+if active_main_page == '3. Descriptive':
     st.header("Descriptive analysis")
     df = require_data()
     if df is not None:
@@ -1569,35 +1314,38 @@ print(correlation)
         if chart_type == "Scatter plot":
             x_chart = st.selectbox("X variable", numeric, key="scatter_x")
             y_chart = st.selectbox("Y variable", numeric, index=min(1, len(numeric)-1), key="scatter_y")
-            if st.button("Draw chart"):
-                fig, ax = themed_subplots()
-                ax.scatter(df[x_chart], df[y_chart])
-                ax.set_xlabel(x_chart)
-                ax.set_ylabel(y_chart)
-                ax.set_title(f"{y_chart} against {x_chart}")
-                st.pyplot(fig)
-                plt.close(fig)
+            chart_config = {"type": chart_type, "x": x_chart, "y": y_chart}
         else:
             chart_vars = st.multiselect("Chart variables", numeric, default=numeric[:1], key="chart_vars")
-            if st.button("Draw chart"):
-                if not chart_vars:
-                    st.warning("Select at least one variable.")
-                else:
-                    fig, ax = themed_subplots()
-                    if chart_type == "Time/line plot":
-                        df[chart_vars].plot(ax=ax)
-                    elif chart_type == "Histogram":
-                        df[chart_vars].plot.hist(ax=ax, alpha=0.6)
-                    else:
-                        df[chart_vars].plot.box(ax=ax)
-                    ax.set_title(chart_type)
-                    st.pyplot(fig)
-                    plt.close(fig)
+            chart_config = {"type": chart_type, "variables": chart_vars}
+        draw_col, clear_col = st.columns(2)
+        if draw_col.button("Draw chart", key="draw_descriptive_chart", type="primary", use_container_width=True):
+            if chart_type != "Scatter plot" and not chart_config.get("variables"):
+                st.warning("Select at least one variable.")
+            else:
+                st.session_state.chart_state = chart_config
+        if clear_col.button("Clear chart", key="clear_descriptive_chart",
+                disabled=st.session_state.chart_state is None, use_container_width=True, type="secondary"):
+            st.session_state.chart_state = None
+        saved_chart = st.session_state.chart_state
+        if saved_chart:
+            fig, ax = plt.subplots()
+            if saved_chart["type"] == "Scatter plot":
+                x_name, y_name = saved_chart["x"], saved_chart["y"]
+                ax.scatter(df[x_name], df[y_name]); ax.set_xlabel(x_name); ax.set_ylabel(y_name)
+                ax.set_title(f"{y_name} against {x_name}")
+            else:
+                variables = saved_chart["variables"]
+                if saved_chart["type"] == "Time/line plot": df[variables].plot(ax=ax)
+                elif saved_chart["type"] == "Histogram": df[variables].plot.hist(ax=ax, alpha=0.6)
+                else: df[variables].plot.box(ax=ax)
+                ax.set_title(saved_chart["type"])
+            fig.tight_layout(); st.pyplot(fig); plt.close(fig)
 
 # ---------------------------------------------------------------------------
 # 4. REGRESSION
 # ---------------------------------------------------------------------------
-with tabs[3]:
+if active_main_page == '4. Regression':
     st.header("Cross-sectional and general regression")
     df = require_data()
     if df is not None:
@@ -1755,14 +1503,16 @@ model = {model_code}
 # ---------------------------------------------------------------------------
 # 5. TIME SERIES
 # ---------------------------------------------------------------------------
-with tabs[4]:
+if active_main_page == '5. Time Series':
     st.header("Time-series econometrics")
     df = require_data()
     if df is not None:
         numeric = numeric_columns(df)
-        ts_tabs = st.tabs(["Unit roots", "ARDL/UECM", "ARIMA", "VAR/VECM", "Granger"])
+        active_ts_page = st.radio("Time-series method",
+            ["Unit roots", "ARDL/UECM", "ARIMA", "VAR/VECM", "Granger"],
+            key="active_ts_page", horizontal=True, label_visibility="collapsed")
 
-        with ts_tabs[0]:
+        if active_ts_page == 'Unit roots':
             st.subheader("Unit-root and stationarity tests")
             test_method = st.selectbox(
                 "Test",
@@ -1884,7 +1634,7 @@ for variable in variables:
                 except Exception as exc:
                     display_exception(exc)
 
-        with ts_tabs[1]:
+        if active_ts_page == 'ARDL/UECM':
             st.subheader("ARDL, UECM and PSS bounds test")
             y = st.selectbox("Dependent variable", numeric, key="ardl_y")
             x = st.multiselect("Explanatory variables", [c for c in numeric if c != y], key="ardl_x")
@@ -2049,7 +1799,7 @@ print(bounds)
                 except Exception as exc:
                     display_exception(exc)
 
-        with ts_tabs[2]:
+        if active_ts_page == 'ARIMA':
             st.subheader("ARIMA and seasonal ARIMA")
             y = st.selectbox("Series", numeric, key="arima_y")
             exog_vars = st.multiselect("Optional exogenous variables", [c for c in numeric if c != y], key="arima_x")
@@ -2121,7 +1871,7 @@ print(results.summary())
                 except Exception as exc:
                     display_exception(exc)
 
-        with ts_tabs[3]:
+        if active_ts_page == 'VAR/VECM':
             st.subheader("VAR and VECM")
             multivariate_method = st.radio("Model", ["VAR", "Johansen test", "VECM"], horizontal=True)
             variables = st.multiselect("Variables", numeric, default=numeric[: min(3, len(numeric))], key="multi_ts_vars")
@@ -2234,7 +1984,7 @@ print(results.summary())
                 except Exception as exc:
                     display_exception(exc)
 
-        with ts_tabs[4]:
+        if active_ts_page == 'Granger':
             st.subheader("Pairwise Granger causality")
             target = st.selectbox("Target variable", numeric, key="granger_y")
             cause = st.selectbox("Potential causal variable", [c for c in numeric if c != target], key="granger_x")
@@ -2290,13 +2040,15 @@ granger_results = grangercausalitytests(
 # ---------------------------------------------------------------------------
 # 6. PANEL AND IV
 # ---------------------------------------------------------------------------
-with tabs[5]:
+if active_main_page == '6. Panel & IV':
     st.header("Panel-data and instrumental-variable models")
     df = require_data()
     if df is not None:
-        panel_tabs = st.tabs(["Panel models", "Instrumental variables"])
+        active_panel_page = st.radio("Panel and IV method",
+            ["Panel models", "Instrumental variables"], key="active_panel_page",
+            horizontal=True, label_visibility="collapsed")
 
-        with panel_tabs[0]:
+        if active_panel_page == "Panel models":
             if not LINEARMODELS_AVAILABLE:
                 st.error(f"Install linearmodels to use panel estimators: {LINEARMODELS_IMPORT_ERROR}")
             else:
@@ -2408,7 +2160,7 @@ print(results.summary)
                     except Exception as exc:
                         display_exception(exc)
 
-        with panel_tabs[1]:
+        if active_panel_page == "Instrumental variables":
             if not LINEARMODELS_AVAILABLE:
                 st.error(f"Install linearmodels to use IV estimators: {LINEARMODELS_IMPORT_ERROR}")
             else:
@@ -2490,7 +2242,7 @@ print(results.summary)
 # ---------------------------------------------------------------------------
 # 7. VOLATILITY
 # ---------------------------------------------------------------------------
-with tabs[6]:
+if active_main_page == '7. Volatility':
     st.header("Financial volatility models")
     df = require_data()
     if df is not None:
@@ -2587,7 +2339,7 @@ print(results.summary())
 # ---------------------------------------------------------------------------
 # 8. EXPORT
 # ---------------------------------------------------------------------------
-with tabs[7]:
+if active_main_page == '8. Export':
     st.header("Export and reproducibility")
     st.write(
         "The generated script contains the transformations and analyses performed through this app. "
@@ -2699,7 +2451,7 @@ with tabs[7]:
 
     st.subheader("Recorded settings")
     if st.session_state.settings_log:
-        st.json(st.session_state.settings_log)
+        display_json(st.session_state.settings_log)
     else:
         st.info("Run an analysis to populate the export package.")
 
