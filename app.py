@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import platform
+from pathlib import Path
 import re
 import sys
 import textwrap
