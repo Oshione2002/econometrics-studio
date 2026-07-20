@@ -48,6 +48,7 @@ Download the exact generated Python code, cleaned data, results and model settin
 
 ## 🚀 Highlights in version 1.3.0
 
+- **Dedicated Diagnostics page** with selectable residual, specification, stability, multicollinearity and influence tests
 - **Persistent navigation** keeps you on the same workspace and sub-method after clearing results, changing dark mode or triggering a rerun
 - **Reliable dark tables** replace the light DataFrame canvas with high-contrast scrollable tables in dark mode
 - **Readable recorded settings** use a dark-compatible JSON code view
@@ -70,7 +71,36 @@ Download the exact generated Python code, cleaned data, results and model settin
 | **Panel data** | Pooled OLS, fixed effects, random effects, first differences, between and Fama–MacBeth |
 | **Endogeneity** | 2SLS, LIML and IV-GMM |
 | **Volatility** | ARCH, GARCH, EGARCH, FIGARCH, APARCH and HARCH |
-| **Diagnostics** | Serial correlation, heteroskedasticity, ARCH effects, normality, RESET, VIF and stability checks |
+| **Diagnostics** | Durbin–Watson, Jarque–Bera, D’Agostino–Pearson, Breusch–Pagan, White, Breusch–Godfrey, Ljung–Box, ARCH LM, Ramsey RESET, Rainbow, CUSUM, condition number, VIF, Cook’s distance, leverage and DFFITS |
+
+## 🧪 Diagnostic testing workspace
+
+Open **Diagnostics** from Streamlit’s page navigation. The page uses the dataset already loaded in the main app and supports OLS, WLS and GLS diagnostic models.
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+### Residual behaviour
+Normality, serial-correlation, heteroskedasticity and ARCH-effect tests with decisions at a selected significance level.
+
+</td>
+<td width="33%" valign="top">
+
+### Specification and stability
+Ramsey RESET, Rainbow linearity, CUSUM stability and condition-number reporting.
+
+</td>
+<td width="33%" valign="top">
+
+### Influence and collinearity
+VIF, tolerance, studentized residuals, leverage, Cook’s distance, DFFITS and flagged observations.
+
+</td>
+</tr>
+</table>
+
+Diagnostic runs remain visible after reruns, support dark mode, include residual plots, and have a **Clear latest diagnostics** button. Retained diagnostic results and generated Python code are automatically included in the main export package.
 
 ## 🖥️ Interface workflow
 
@@ -81,7 +111,7 @@ Prepare and rename variables
     ↓
 Choose an econometric method
     ↓
-Estimate and inspect diagnostics
+Estimate and run diagnostic tests
     ↓
 Clear unwanted analyses or charts immediately
     ↓
@@ -127,7 +157,7 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Streamlit opens the application in your browser.
+Streamlit opens the application in your browser. Select **Diagnostics** from the page navigation when you need the full diagnostic suite.
 
 ## ☁️ Deploy on Streamlit Community Cloud
 
@@ -137,7 +167,7 @@ Streamlit opens the application in your browser.
 4. Set the entry point to `app.py`.
 5. Click **Deploy**.
 
-The repository already contains `.streamlit/config.toml` and `requirements.txt`.
+The repository already contains `.streamlit/config.toml`, `requirements.txt` and the Streamlit `pages` directory.
 
 ## 📦 Reproduction package
 
@@ -154,7 +184,7 @@ econometric_reproduction_package/
 └── text_results/
 ```
 
-Use the clear button beside an analysis, or the export manager, to remove work that should not appear in the final package.
+Use the clear button beside an analysis, the **Clear latest diagnostics** button, or the export manager to remove work that should not appear in the final package.
 
 ## 🧱 Technology
 
