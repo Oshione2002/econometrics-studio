@@ -13,7 +13,6 @@ import traceback
 import warnings
 import zipfile
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
