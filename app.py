@@ -13,6 +13,7 @@ import traceback
 import warnings
 import zipfile
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -62,7 +63,7 @@ except Exception as exc:
     LINEARMODELS_IMPORT_ERROR = str(exc)
 
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.2.0"
 DEFAULT_DATA_FILE = "cleaned_dataset.csv"
 
 st.set_page_config(
@@ -83,6 +84,8 @@ def init_state() -> None:
         "code_blocks": [],
         "results": {},
         "settings_log": [],
+        "slot_outputs": {},
+        "dark_mode": False,
         "last_error": None,
     }
     for key, value in defaults.items():
@@ -100,6 +103,8 @@ def clear_project() -> None:
         "code_blocks",
         "results",
         "settings_log",
+        "slot_outputs",
+        "_active_registration_slot",
         "last_error",
     ]:
         st.session_state.pop(key, None)
@@ -165,7 +170,344 @@ def register_output(
             "summary": summary or "",
         }
     )
+    slot = st.session_state.pop("_active_registration_slot", None)
+    if slot:
+        stack = st.session_state.slot_outputs.setdefault(slot, [])
+        if isinstance(stack, str):
+            stack = [stack]
+            st.session_state.slot_outputs[slot] = stack
+        stack.append(name)
+
     add_history(f"Completed {name}")
+
+
+def _replace_text_in_object(value: Any, old: str, new: str) -> Any:
+    """Recursively update variable references stored in settings and history."""
+    if isinstance(value, str):
+        return value.replace(old, new)
+    if isinstance(value, list):
+        return [_replace_text_in_object(item, old, new) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_replace_text_in_object(item, old, new) for item in value)
+    if isinstance(value, dict):
+        return {
+            _replace_text_in_object(key, old, new): _replace_text_in_object(item, old, new)
+            for key, item in value.items()
+        }
+    return value
+
+
+def _renamed_axis(axis: pd.Index, old: str, new: str) -> pd.Index:
+    def rename_label(label: Any) -> Any:
+        if isinstance(label, tuple):
+            return tuple(rename_label(item) for item in label)
+        if isinstance(label, str):
+            return label.replace(old, new)
+        return label
+
+    labels = [rename_label(label) for label in axis]
+    names = [rename_label(name) for name in axis.names]
+    if isinstance(axis, pd.MultiIndex):
+        return pd.MultiIndex.from_tuples(labels, names=names)
+    return pd.Index(labels, name=names[0] if names else None)
+
+
+def _rename_result_labels(value: Any, old: str, new: str) -> Any:
+    """Rename variable labels in saved tables and textual summaries."""
+    if isinstance(value, pd.DataFrame):
+        updated = value.copy()
+        updated.index = _renamed_axis(updated.index, old, new)
+        updated.columns = _renamed_axis(updated.columns, old, new)
+        return updated
+    if isinstance(value, pd.Series):
+        updated = value.copy()
+        updated.index = _renamed_axis(updated.index, old, new)
+        if isinstance(updated.name, str):
+            updated.name = updated.name.replace(old, new)
+        return updated
+    if isinstance(value, str):
+        return value.replace(old, new)
+    return value
+
+
+def rename_variable_everywhere(old: str, new: str) -> None:
+    """Rename a current-data column and update recorded reproducibility objects."""
+    st.session_state.df = st.session_state.df.rename(columns={old: new})
+
+    old_literal = repr(old)
+    new_literal = repr(new)
+    for block in st.session_state.code_blocks:
+        block["code"] = block["code"].replace(old_literal, new_literal)
+
+    st.session_state.settings_log = _replace_text_in_object(
+        st.session_state.settings_log, old, new
+    )
+    st.session_state.history = _replace_text_in_object(
+        st.session_state.history, old, new
+    )
+
+    st.session_state.results = {
+        key: _rename_result_labels(value, old, new)
+        for key, value in st.session_state.results.items()
+    }
+
+    for key in list(st.session_state.keys()):
+        if key.startswith("last_"):
+            st.session_state[key] = _rename_result_labels(
+                st.session_state[key], old, new
+            )
+
+    rename_code = f"data = data.rename(columns={{{old!r}: {new!r}}})"
+    register_output(
+        make_unique_name("Rename_variable"),
+        pd.DataFrame(
+            {"Previous variable name": [old], "New variable name": [new]}
+        ),
+        rename_code,
+        {
+            "operation": "Rename variable",
+            "previous_name": old,
+            "new_name": new,
+        },
+    )
+
+
+def registered_analysis_names() -> list[str]:
+    """Return registered analysis/operation identifiers in creation order."""
+    names: list[str] = []
+    for entry in st.session_state.settings_log:
+        name = entry.get("name")
+        if name and name not in names:
+            names.append(name)
+    return names
+
+
+def _record_owner(record_name: str, registered_names: list[str]) -> str | None:
+    """Find the registered analysis that owns a result or code-block name."""
+    matches = [
+        name
+        for name in registered_names
+        if record_name == name or record_name.startswith(name + "_")
+    ]
+    return max(matches, key=len) if matches else None
+
+
+def remove_recorded_analyses(selected_names: list[str]) -> int:
+    """
+    Remove selected analyses from code, result files, settings and exported history.
+
+    The current working dataset is intentionally left unchanged.
+    """
+    selected = set(selected_names)
+    if not selected:
+        return 0
+
+    all_names = registered_analysis_names()
+
+    st.session_state.code_blocks = [
+        block
+        for block in st.session_state.code_blocks
+        if _record_owner(str(block.get("name", "")), all_names) not in selected
+    ]
+
+    st.session_state.results = {
+        key: value
+        for key, value in st.session_state.results.items()
+        if _record_owner(str(key), all_names) not in selected
+    }
+
+    st.session_state.settings_log = [
+        entry
+        for entry in st.session_state.settings_log
+        if entry.get("name") not in selected
+    ]
+
+    completed_actions = {f"Completed {name}" for name in selected}
+    st.session_state.history = [
+        item
+        for item in st.session_state.history
+        if item.get("action") not in completed_actions
+    ]
+
+    for slot, stack in list(st.session_state.slot_outputs.items()):
+        if isinstance(stack, str):
+            stack = [stack]
+        remaining = [name for name in stack if name not in selected]
+        if remaining:
+            st.session_state.slot_outputs[slot] = remaining
+        else:
+            st.session_state.slot_outputs.pop(slot, None)
+
+    for key in list(st.session_state.keys()):
+        if key.startswith("last_"):
+            del st.session_state[key]
+
+    return len(selected)
+
+
+def _slot_stack(slot: str) -> list[str]:
+    stack = st.session_state.slot_outputs.get(slot, [])
+    if isinstance(stack, str):
+        stack = [stack]
+        st.session_state.slot_outputs[slot] = stack
+    return stack
+
+
+def latest_slot_output(slot: str) -> str | None:
+    stack = _slot_stack(slot)
+    return stack[-1] if stack else None
+
+
+def clear_latest_slot_output(slot: str) -> str | None:
+    current = latest_slot_output(slot)
+    if current is None:
+        return None
+    remove_recorded_analyses([current])
+    stack = _slot_stack(slot)
+    if current in stack:
+        stack.remove(current)
+    if not stack:
+        st.session_state.slot_outputs.pop(slot, None)
+    return current
+
+
+def render_slot_clear(
+    slot: str,
+    label: str = "Clear latest result",
+    *,
+    key: str | None = None,
+) -> None:
+    current = latest_slot_output(slot)
+    clicked = st.button(
+        label,
+        key=key or f"clear_{slot}",
+        disabled=current is None,
+        use_container_width=True,
+        type="secondary",
+    )
+    if current:
+        st.caption(f"Latest recorded item: `{current}`")
+    if clicked:
+        removed = clear_latest_slot_output(slot)
+        st.session_state["local_clear_notice"] = (
+            f"Removed {removed!r} from generated code and the full export."
+        )
+        st.rerun()
+
+
+def analysis_action_buttons(
+    run_label: str,
+    slot: str,
+    *,
+    clear_label: str = "Clear latest result",
+    primary: bool = True,
+) -> bool:
+    run_col, clear_col = st.columns(2)
+    run_clicked = run_col.button(
+        run_label,
+        key=f"run_{slot}",
+        type="primary" if primary else "secondary",
+        use_container_width=True,
+    )
+    if run_clicked:
+        st.session_state["_active_registration_slot"] = slot
+
+    with clear_col:
+        render_slot_clear(
+            slot,
+            clear_label,
+            key=f"clear_{slot}_near_action",
+        )
+    return run_clicked
+
+
+def apply_dynamic_theme(dark_mode: bool) -> None:
+    if not dark_mode:
+        return
+
+    st.markdown(
+        """
+        <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        .stApp,
+        [data-testid="stAppViewContainer"],
+        [data-testid="stHeader"] {
+            background-color: #0e1117 !important;
+            color: #f3f4f6 !important;
+        }
+
+        [data-testid="stSidebar"] {
+            background-color: #161b22 !important;
+            border-right: 1px solid #30363d !important;
+        }
+
+        [data-testid="stSidebar"] *,
+        .stApp h1, .stApp h2, .stApp h3, .stApp h4,
+        .stApp p, .stApp label, .stApp span,
+        .stApp [data-testid="stMarkdownContainer"] {
+            color: #f3f4f6;
+        }
+
+        div[data-baseweb="select"] > div,
+        div[data-baseweb="input"] > div,
+        div[data-baseweb="base-input"],
+        input, textarea {
+            background-color: #1f2937 !important;
+            color: #f9fafb !important;
+            border-color: #4b5563 !important;
+        }
+
+        div[data-baseweb="popover"],
+        div[data-baseweb="menu"],
+        ul[role="listbox"] {
+            background-color: #1f2937 !important;
+            color: #f9fafb !important;
+        }
+
+        div[data-testid="stDataFrame"],
+        div[data-testid="stTable"],
+        div[data-testid="stMetric"],
+        div[data-testid="stExpander"],
+        div[data-testid="stAlert"] {
+            background-color: #161b22 !important;
+            color: #f3f4f6 !important;
+            border-color: #30363d !important;
+        }
+
+        .stTabs [data-baseweb="tab-list"] {
+            background-color: #161b22 !important;
+            border-radius: 0.5rem;
+        }
+
+        .stTabs [data-baseweb="tab"] {
+            color: #d1d5db !important;
+        }
+
+        .stTabs [aria-selected="true"] {
+            color: #ffffff !important;
+            border-bottom-color: #60a5fa !important;
+        }
+
+        .stButton > button,
+        .stDownloadButton > button {
+            border-color: #4b5563 !important;
+        }
+
+        code, pre, .stCodeBlock {
+            background-color: #111827 !important;
+            color: #e5e7eb !important;
+        }
+
+        hr {
+            border-color: #30363d !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def parameter_table(results: Any) -> pd.DataFrame:
@@ -320,6 +662,7 @@ Review model assumptions and data definitions before publication.
 
 
 def display_exception(exc: Exception) -> None:
+    st.session_state.pop("_active_registration_slot", None)
     st.error(f"{type(exc).__name__}: {exc}")
     st.session_state.last_error = traceback.format_exc()
     with st.expander("Technical details"):
@@ -505,6 +848,11 @@ with st.sidebar:
     st.header("Project")
     st.write(f"App version: **{APP_VERSION}**")
     st.write(f"Python: **{platform.python_version()}**")
+    st.toggle(
+        "Dark mode",
+        key="dark_mode",
+        help="Switch between the default light appearance and a dark interface.",
+    )
 
     if st.session_state.df is not None:
         st.success(
@@ -527,6 +875,11 @@ with st.sidebar:
                 st.caption(f"{item['time']} — {item['action']}")
         else:
             st.caption("No analysis has been run.")
+
+apply_dynamic_theme(bool(st.session_state.dark_mode))
+
+if notice := st.session_state.pop("local_clear_notice", None):
+    st.success(notice)
 
 tabs = st.tabs(
     [
@@ -598,6 +951,58 @@ with tabs[0]:
 
         st.subheader("Preview")
         st.dataframe(df, use_container_width=True, height=420)
+
+        st.subheader("Rename variables")
+        st.caption(
+            "Rename one variable at a time. Recorded code, settings and saved "
+            "result labels are updated to use the new name."
+        )
+        with st.form("rename_variable_form", clear_on_submit=True):
+            rename_from = st.selectbox(
+                "Current variable name",
+                list(df.columns),
+                key="rename_from_variable",
+            )
+            rename_to = st.text_input(
+                "New variable name",
+                placeholder="Enter a unique variable name",
+            )
+            rename_submitted = st.form_submit_button(
+                "Rename variable",
+                type="primary",
+            )
+
+        if rename_submitted:
+            try:
+                clean_new_name = rename_to.strip()
+                if not clean_new_name:
+                    raise ValueError("Enter a new variable name.")
+                if clean_new_name == rename_from:
+                    raise ValueError("The new name is the same as the current name.")
+                if clean_new_name in df.columns:
+                    raise ValueError(
+                        f"A variable named {clean_new_name!r} already exists."
+                    )
+                if "\n" in clean_new_name or "\r" in clean_new_name:
+                    raise ValueError("Variable names cannot contain line breaks.")
+
+                st.session_state["_active_registration_slot"] = "rename_variable"
+                rename_variable_everywhere(rename_from, clean_new_name)
+                st.session_state["data_notice"] = (
+                    f"Renamed {rename_from!r} to {clean_new_name!r}."
+                )
+                st.rerun()
+            except Exception as exc:
+                display_exception(exc)
+
+        if notice := st.session_state.pop("data_notice", None):
+            st.success(notice)
+
+        render_slot_clear(
+            "rename_variable",
+            "Clear latest rename from export",
+            key="clear_rename_variable_data_tab",
+        )
 
         info_col, missing_col = st.columns(2)
         with info_col:
@@ -700,7 +1105,11 @@ with tabs[1]:
             )
             new_name = st.text_input("New variable name", value=default_name)
 
-            if st.button("Apply transformation", type="primary"):
+            if analysis_action_buttons(
+                "Apply transformation",
+                "transformation",
+                clear_label="Clear latest transformation",
+            ):
                 try:
                     series = pd.to_numeric(df[source], errors="coerce")
                     code = ""
@@ -772,7 +1181,11 @@ with tabs[1]:
             "Treatment",
             ["Drop rows", "Fill with mean", "Fill with median", "Forward fill", "Backward fill", "Linear interpolation"],
         )
-        if st.button("Apply missing-value treatment"):
+        if analysis_action_buttons(
+            "Apply missing-value treatment",
+            "missing_values",
+            clear_label="Clear latest missing-value operation",
+        ):
             try:
                 if not missing_columns:
                     raise ValueError("Select at least one column.")
@@ -822,7 +1235,11 @@ with tabs[2]:
 
         col_a, col_b = st.columns(2)
         with col_a:
-            if st.button("Run descriptive statistics", type="primary"):
+            if analysis_action_buttons(
+                "Run descriptive statistics",
+                "descriptive_statistics",
+                clear_label="Clear latest descriptive result",
+            ):
                 try:
                     if not selected:
                         raise ValueError("Select at least one variable.")
@@ -846,7 +1263,12 @@ print(descriptive)
 
         with col_b:
             corr_method = st.selectbox("Correlation method", ["pearson", "spearman", "kendall"])
-            if st.button("Run correlation matrix"):
+            if analysis_action_buttons(
+                "Run correlation matrix",
+                "correlation",
+                clear_label="Clear latest correlation result",
+                primary=False,
+            ):
                 try:
                     if len(selected) < 2:
                         raise ValueError("Select at least two variables.")
@@ -940,7 +1362,11 @@ with tabs[3]:
         if method == "Quantile regression":
             quantile = st.slider("Quantile", 0.05, 0.95, 0.50, 0.05)
 
-        if st.button("Estimate regression", type="primary"):
+        if analysis_action_buttons(
+            "Estimate regression",
+            "regression",
+            clear_label="Clear latest regression",
+        ):
             try:
                 if not x:
                     raise ValueError("Select at least one explanatory variable.")
@@ -1088,7 +1514,11 @@ with tabs[4]:
             automatic_lag = st.checkbox("Select lag/bandwidth automatically", value=True)
             max_lag = None if automatic_lag else int(st.number_input("Lag/bandwidth", 0, 100, 1))
 
-            if st.button("Run unit-root tests", type="primary"):
+            if analysis_action_buttons(
+                "Run unit-root tests",
+                "unit_root",
+                clear_label="Clear latest unit-root result",
+            ):
                 try:
                     if not test_vars:
                         raise ValueError("Select at least one variable.")
@@ -1214,7 +1644,11 @@ for variable in variables:
             run_bounds = st.checkbox("Estimate UECM and bounds test", value=True)
             bounds_case = st.selectbox("PSS bounds-test case", [1, 2, 3, 4, 5], index=2)
 
-            if st.button("Estimate ARDL", type="primary"):
+            if analysis_action_buttons(
+                "Estimate ARDL",
+                "ardl",
+                clear_label="Clear latest ARDL result",
+            ):
                 try:
                     if not x:
                         raise ValueError("Select at least one explanatory variable.")
@@ -1363,7 +1797,11 @@ print(bounds)
                 seasonal_order = (0, 0, 0, 0)
             arima_trend = st.selectbox("Trend", ["None", "n", "c", "t", "ct"])
 
-            if st.button("Estimate ARIMA", type="primary"):
+            if analysis_action_buttons(
+                "Estimate ARIMA",
+                "arima",
+                clear_label="Clear latest ARIMA result",
+            ):
                 try:
                     columns = [y] + exog_vars
                     sample = clean_numeric_frame(df, columns)
@@ -1430,7 +1868,11 @@ print(results.summary())
                 coint_rank = int(st.number_input("Cointegration rank", 1, max(1, len(variables)-1), 1))
                 deterministic = st.selectbox("Deterministic specification", ["n", "co", "ci", "lo", "li", "colo", "cili"])
 
-            if st.button(f"Run {multivariate_method}", type="primary"):
+            if analysis_action_buttons(
+                f"Run {multivariate_method}",
+                "multivariate_time_series",
+                clear_label="Clear latest VAR/VECM result",
+            ):
                 try:
                     if len(variables) < 2:
                         raise ValueError("Select at least two variables.")
@@ -1516,7 +1958,7 @@ results = model.fit()
 print(results.summary())
 """
                         name = make_unique_name("VECM")
-                        register_output(name + "_alpha", alpha, code, {"variables": variables}, text)
+                        register_output(name, alpha, code, {"variables": variables}, text)
                         st.session_state.results[name + "_beta"] = beta
                         st.session_state.results[name + "_summary"] = text
                 except Exception as exc:
@@ -1528,7 +1970,11 @@ print(results.summary())
             cause = st.selectbox("Potential causal variable", [c for c in numeric if c != target], key="granger_x")
             maxlag = int(st.number_input("Maximum lag", 1, 20, 2, key="granger_lags"))
 
-            if st.button("Run Granger causality", type="primary"):
+            if analysis_action_buttons(
+                "Run Granger causality",
+                "granger",
+                clear_label="Clear latest Granger result",
+            ):
                 try:
                     sample = clean_numeric_frame(df, [target, cause])
                     result = grangercausalitytests(sample[[target, cause]], maxlag=maxlag, verbose=False)
@@ -1604,7 +2050,11 @@ with tabs[5]:
                 cluster_entity = st.checkbox("Cluster by entity", value=True)
                 cluster_time = st.checkbox("Cluster by time", value=False)
 
-                if st.button("Estimate panel model", type="primary"):
+                if analysis_action_buttons(
+                    "Estimate panel model",
+                    "panel_model",
+                    clear_label="Clear latest panel result",
+                ):
                     try:
                         if not x:
                             raise ValueError("Select at least one explanatory variable.")
@@ -1705,7 +2155,11 @@ print(results.summary)
                 iv_constant = st.checkbox("Include intercept", value=True, key="iv_constant")
                 iv_cov = st.selectbox("IV covariance", ["unadjusted", "robust", "kernel", "clustered"])
 
-                if st.button("Estimate IV model", type="primary"):
+                if analysis_action_buttons(
+                    "Estimate IV model",
+                    "iv_model",
+                    clear_label="Clear latest IV result",
+                ):
                     try:
                         if not endog or not instruments:
                             raise ValueError("Select endogenous regressors and excluded instruments.")
@@ -1784,7 +2238,11 @@ with tabs[6]:
             q = int(st.number_input("Volatility q", 0, 10, 1))
             distribution = st.selectbox("Error distribution", ["normal", "t", "skewt", "ged"])
 
-            if st.button("Estimate volatility model", type="primary"):
+            if analysis_action_buttons(
+                "Estimate volatility model",
+                "volatility",
+                clear_label="Clear latest volatility result",
+            ):
                 try:
                     series = pd.to_numeric(df[y], errors="coerce").dropna()
                     if rescale:
@@ -1870,6 +2328,54 @@ with tabs[7]:
     c1.metric("Recorded analyses", len(st.session_state.code_blocks))
     c2.metric("Saved outputs", len(st.session_state.results))
     c3.metric("History entries", len(st.session_state.history))
+
+    if notice := st.session_state.pop("export_notice", None):
+        st.success(notice)
+
+    st.subheader("Manage recorded analyses")
+    st.caption(
+        "Removing an item deletes its generated code, saved result tables and "
+        "text, settings, and related completion entry from the full export. "
+        "The current working dataset is not changed."
+    )
+
+    analysis_names = registered_analysis_names()
+    if analysis_names:
+        analyses_to_remove = st.multiselect(
+            "Select analyses or recorded operations to remove",
+            analysis_names,
+            key="analyses_to_remove",
+        )
+        remove_col, clear_col = st.columns(2)
+
+        if remove_col.button(
+            "Remove selected from export",
+            disabled=not analyses_to_remove,
+            use_container_width=True,
+        ):
+            removed_count = remove_recorded_analyses(analyses_to_remove)
+            st.session_state["export_notice"] = (
+                f"Removed {removed_count} selected item(s) from the full export."
+            )
+            st.rerun()
+
+        confirm_clear_all = clear_col.checkbox(
+            "Confirm clearing all recorded work",
+            key="confirm_clear_all_export",
+        )
+        if clear_col.button(
+            "Clear all analyses from export",
+            disabled=not confirm_clear_all,
+            use_container_width=True,
+            type="secondary",
+        ):
+            removed_count = remove_recorded_analyses(analysis_names)
+            st.session_state["export_notice"] = (
+                f"Cleared {removed_count} recorded item(s) from the full export."
+            )
+            st.rerun()
+    else:
+        st.info("There are no recorded analyses or operations to remove.")
 
     script = generated_analysis_script()
     st.subheader("Generated Python code")
