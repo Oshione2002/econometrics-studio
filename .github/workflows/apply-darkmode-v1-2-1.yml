@@ -1,0 +1,39 @@
+name: Apply Econometrics Studio dark-mode fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-darkmode-v1-2-1.yml'
+      - '.update/darkmode_v1_2_1.patch.gz.b64'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-darkmode-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decode and apply patch
+        shell: bash
+        run: |
+          base64 -d .update/darkmode_v1_2_1.patch.gz.b64 | gzip -d > /tmp/darkmode.patch
+          git apply --check /tmp/darkmode.patch
+          git apply --whitespace=nowarn /tmp/darkmode.patch
+          grep -q 'APP_VERSION = "1.2.1"' app.py
+          python -m py_compile app.py
+
+      - name: Commit corrected dark mode
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.py
+          git commit -m 'Improve dark mode coverage in Econometrics Studio'
+          git push origin main
