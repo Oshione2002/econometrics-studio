@@ -1,18 +1,17 @@
-name: Apply Econometrics Studio update
+name: Finalize Econometrics Studio update
 
 on:
   push:
     branches: [main]
     paths:
       - '.github/workflows/apply-econometrics-update.yml'
-      - '.update/**'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  apply-update:
+  finalize-update:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -20,24 +19,35 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Reconstruct and apply application patch
+      - name: Remove duplicate import and validate application
         shell: bash
         run: |
-          cat .update/part_00 .update/part_01 .update/part_02 .update/part_03 > /tmp/app_v1_2.patch
-          git apply --reject --whitespace=nowarn /tmp/app_v1_2.patch || true
-          rm -f app.py.rej
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('app.py')
+          lines = path.read_text(encoding='utf-8').splitlines()
+          seen = False
+          cleaned = []
+          for line in lines:
+              if line == 'from pathlib import Path':
+                  if seen:
+                      continue
+                  seen = True
+              cleaned.append(line)
+          path.write_text('\n'.join(cleaned) + '\n', encoding='utf-8')
+          PY
           grep -q 'APP_VERSION = "1.2.0"' app.py
           python -m py_compile app.py
 
-      - name: Commit updated application
+      - name: Commit final cleanup
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add app.py
           if git diff --cached --quiet; then
-            echo 'No application changes to commit.'
+            echo 'No cleanup changes to commit.'
           else
-            git commit -m 'Upgrade Econometrics Studio to v1.2.0'
+            git commit -m 'Clean up Econometrics Studio v1.2 imports'
             git push origin main
           fi
