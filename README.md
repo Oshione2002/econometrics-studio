@@ -10,7 +10,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.49%2B-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)
-![Version](https://img.shields.io/badge/version-1.2.0-1F4E78?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-1.2.1-1F4E78?style=for-the-badge)
 ![License](https://img.shields.io/badge/license-research%20use-2EA44F?style=for-the-badge)
 
 <br />
@@ -46,9 +46,9 @@ Download the exact generated Python code, cleaned data, results and model settin
 </tr>
 </table>
 
-## 🚀 Highlights in version 1.2
+## 🚀 Highlights in version 1.2.1
 
-- **Light and dark interface modes**
+- **Expanded dark mode coverage** for forms, menus, uploaders, tables, alerts, metrics, code blocks and Matplotlib charts
 - **Immediate clear buttons** beside each analysis action
 - **Variable renaming** with recorded-code and result-label updates
 - **Selective export control** for removing unwanted analyses
@@ -180,6 +180,6 @@ Econometrics Studio assists with computation and reproducibility; it does not re
 
 ### Built for transparent, reproducible econometric research
 
-**Econometrics Studio · Version 1.2.0**
+**Econometrics Studio · Version 1.2.1**
 
 </div>
