@@ -1,0 +1,10 @@
+streamlit>=1.49,<2
+pandas>=2.2,<3
+numpy>=2.0,<3
+scipy>=1.13,<2
+statsmodels==0.14.6
+arch>=7.2,<9
+linearmodels>=7.0,<8
+matplotlib>=3.9,<4
+openpyxl>=3.1,<4
+xlsxwriter>=3.2,<4
