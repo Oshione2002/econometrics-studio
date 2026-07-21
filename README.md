@@ -10,7 +10,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.49%2B-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)
-![Version](https://img.shields.io/badge/version-1.5.0-1F4E78?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-1.6.0-1F4E78?style=for-the-badge)
 ![License](https://img.shields.io/badge/license-research%20use-2EA44F?style=for-the-badge)
 
 <br />
@@ -46,7 +46,7 @@ Download the generated Python code, cleaned data, result tables and recorded mod
 </tr>
 </table>
 
-## 🚀 Highlights in version 1.5.0
+## 🚀 Highlights in version 1.6.0
 
 - **True post-estimation diagnostics** use the exact saved fitted model instead of estimating a duplicate model.
 - **Estimator-specific diagnostic suites** adapt to linear, binary, count, ARDL/ARIMA, VAR/VECM, panel, IV and volatility models.
@@ -63,7 +63,7 @@ Download the generated Python code, cleaned data, result tables and recorded mod
 |---|---|
 | **Data management** | CSV, Excel and Stata upload; sorting; missing-value inspection and treatment |
 | **Transformations** | Logs, signed logs, differences, growth rates, lags, leads, scaling and interactions |
-| **Descriptive analysis** | Summary statistics, normality measures, correlations and persistent charts |
+| **Preliminary analysis** | Data and panel structure; descriptive statistics; distributions; correlation and covariance; VIF and condition indices; entity and time trends; time-series unit roots; serial correlation; ARCH; ACF/PACF; within-between variation; cross-sectional dependence; slope heterogeneity; CIPS and Fisher panel unit roots; Westerlund and residual-based panel cointegration |
 | **Regression** | OLS, WLS, GLS, robust regression, quantile regression, logit, probit and count models |
 | **Unit roots** | ADF, Phillips–Perron, KPSS, DF-GLS and Zivot–Andrews |
 | **Time series** | ARDL, UECM, PSS bounds test, ARIMA/SARIMA, VAR, Johansen, VECM and Granger causality |
@@ -135,6 +135,8 @@ Diagnostic runs remain visible after reruns, support dark mode, include appropri
 Upload data
     ↓
 Prepare and rename variables
+    ↓
+Run general, time-series or panel preliminary tests
     ↓
 Choose an econometric method
     ↓
@@ -242,6 +244,6 @@ Econometrics Studio assists with computation and reproducibility; it does not re
 
 ### Built for transparent, reproducible econometric research
 
-**Econometrics Studio · Version 1.5.0**
+**Econometrics Studio · Version 1.6.0**
 
 </div>

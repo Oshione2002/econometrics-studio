@@ -21,6 +21,7 @@ import pandas as pd
 import scipy.stats as scipy_stats
 import statsmodels.api as sm
 import streamlit as st
+from preliminary import render_preliminary_workspace
 from statsmodels.stats.diagnostic import (
     acorr_breusch_godfrey,
     het_arch,
@@ -62,7 +63,7 @@ except Exception as exc:
     LINEARMODELS_IMPORT_ERROR = str(exc)
 
 
-APP_VERSION = "1.5.0"
+APP_VERSION = "1.6.0"
 DEFAULT_DATA_FILE = "cleaned_dataset.csv"
 
 st.set_page_config(
@@ -87,6 +88,10 @@ def init_state() -> None:
         "model_registry": {},
         "diagnostic_runs": {},
         "diagnostic_page_state": None,
+        "active_preliminary_family": "General and descriptive",
+        "active_preliminary_method": "Data and panel structure",
+        "preliminary_chart_state": None,
+        "preliminary_display_name": None,
         "dark_mode": False,
         "active_main_page": "1. Data",
         "active_ts_page": "Unit roots",
@@ -113,6 +118,10 @@ def clear_project() -> None:
         "model_registry",
         "diagnostic_runs",
         "diagnostic_page_state",
+        "active_preliminary_family",
+        "active_preliminary_method",
+        "preliminary_chart_state",
+        "preliminary_display_name",
         "_active_registration_slot",
         "last_error",
     ]:
@@ -695,6 +704,7 @@ Generated with Econometrics Studio {APP_VERSION}.
 - `results.xlsx`: tabular results.
 - `text_results/`: textual model summaries.
 - `analysis_configuration.json`: analysis history and settings.
+- `preliminary.py`: reusable preliminary-analysis procedures.
 - `requirements.txt`: required packages.
 
 ## Run
@@ -708,6 +718,7 @@ Review model assumptions and data definitions before publication.
 """
 
     requirements = Path(__file__).with_name("requirements.txt")
+    preliminary_module = Path(__file__).with_name("preliminary.py")
     requirement_text = (
         requirements.read_text(encoding="utf-8")
         if requirements.exists()
@@ -719,6 +730,11 @@ Review model assumptions and data definitions before publication.
         archive.writestr("analysis_configuration.json", json.dumps(config, indent=2, default=str))
         archive.writestr("requirements.txt", requirement_text)
         archive.writestr("README.md", readme)
+        if preliminary_module.exists():
+            archive.writestr(
+                "preliminary.py",
+                preliminary_module.read_text(encoding="utf-8"),
+            )
 
         if st.session_state.df is not None:
             archive.writestr(
@@ -955,8 +971,10 @@ apply_dynamic_theme(bool(st.session_state.dark_mode))
 if notice := st.session_state.pop("local_clear_notice", None):
     st.success(notice)
 
-MAIN_PAGES = ["1. Data", "2. Transform", "3. Descriptive", "4. Regression",
+MAIN_PAGES = ["1. Data", "2. Transform", "3. Preliminary", "4. Regression",
     "5. Time Series", "6. Panel & IV", "7. Volatility", "8. Export"]
+if st.session_state.get("active_main_page") == "3. Descriptive":
+    st.session_state.active_main_page = "3. Preliminary"
 active_main_page = st.radio("Workspace", MAIN_PAGES, key="active_main_page",
     horizontal=True, label_visibility="collapsed")
 
@@ -1006,6 +1024,10 @@ if active_main_page == '1. Data':
                 st.session_state.model_registry = {}
                 st.session_state.diagnostic_runs = {}
                 st.session_state.diagnostic_page_state = None
+                st.session_state.active_preliminary_family = "General and descriptive"
+                st.session_state.active_preliminary_method = "Data and panel structure"
+                st.session_state.preliminary_chart_state = None
+                st.session_state.preliminary_display_name = None
                 add_history(f"Uploaded {uploaded.name}")
                 st.success("Dataset loaded.")
             except Exception as exc:
@@ -1294,108 +1316,20 @@ if active_main_page == '2. Transform':
                 display_exception(exc)
 
 # ---------------------------------------------------------------------------
-# 3. DESCRIPTIVE
+# 3. PRELIMINARY ANALYSIS
 # ---------------------------------------------------------------------------
-if active_main_page == '3. Descriptive':
-    st.header("Descriptive analysis")
+if active_main_page == '3. Preliminary':
+    st.header("Preliminary analysis")
     df = require_data()
     if df is not None:
-        numeric = numeric_columns(df)
-        selected = st.multiselect("Variables", numeric, default=numeric[: min(6, len(numeric))])
-
-        col_a, col_b = st.columns(2)
-        with col_a:
-            if analysis_action_buttons(
-                "Run descriptive statistics",
-                "descriptive_statistics",
-                clear_label="Clear latest descriptive result",
-            ):
-                try:
-                    if not selected:
-                        raise ValueError("Select at least one variable.")
-                    frame = clean_numeric_frame(df, selected)
-                    table = descriptive_statistics(frame)
-                    name = make_unique_name("Descriptive_statistics")
-                    code = f"""
-variables = {selected!r}
-sample = data[variables].apply(pd.to_numeric, errors="coerce")
-descriptive = sample.describe().T
-descriptive["Median"] = sample.median()
-descriptive["Variance"] = sample.var(ddof=1)
-descriptive["Skewness"] = sample.skew()
-descriptive["Kurtosis"] = sample.kurtosis() + 3
-print(descriptive)
-"""
-                    register_output(name, table, code, {"variables": selected})
-                    st.session_state["last_descriptive"] = table
-                except Exception as exc:
-                    display_exception(exc)
-
-        with col_b:
-            corr_method = st.selectbox("Correlation method", ["pearson", "spearman", "kendall"])
-            if analysis_action_buttons(
-                "Run correlation matrix",
-                "correlation",
-                clear_label="Clear latest correlation result",
-                primary=False,
-            ):
-                try:
-                    if len(selected) < 2:
-                        raise ValueError("Select at least two variables.")
-                    frame = clean_numeric_frame(df, selected)
-                    table = frame.corr(method=corr_method)
-                    name = make_unique_name("Correlation")
-                    code = f"""
-variables = {selected!r}
-sample = data[variables].apply(pd.to_numeric, errors="coerce").dropna()
-correlation = sample.corr(method={corr_method!r})
-print(correlation)
-"""
-                    register_output(name, table, code, {"variables": selected, "method": corr_method})
-                    st.session_state["last_correlation"] = table
-                except Exception as exc:
-                    display_exception(exc)
-
-        if "last_descriptive" in st.session_state:
-            st.subheader("Descriptive statistics")
-            display_dataframe(st.session_state.last_descriptive, use_container_width=True)
-
-        if "last_correlation" in st.session_state:
-            st.subheader("Correlation matrix")
-            display_dataframe(st.session_state.last_correlation, use_container_width=True)
-
-        st.subheader("Charts")
-        chart_type = st.selectbox("Chart", ["Time/line plot", "Histogram", "Scatter plot", "Box plot"])
-        if chart_type == "Scatter plot":
-            x_chart = st.selectbox("X variable", numeric, key="scatter_x")
-            y_chart = st.selectbox("Y variable", numeric, index=min(1, len(numeric)-1), key="scatter_y")
-            chart_config = {"type": chart_type, "x": x_chart, "y": y_chart}
-        else:
-            chart_vars = st.multiselect("Chart variables", numeric, default=numeric[:1], key="chart_vars")
-            chart_config = {"type": chart_type, "variables": chart_vars}
-        draw_col, clear_col = st.columns(2)
-        if draw_col.button("Draw chart", key="draw_descriptive_chart", type="primary", use_container_width=True):
-            if chart_type != "Scatter plot" and not chart_config.get("variables"):
-                st.warning("Select at least one variable.")
-            else:
-                st.session_state.chart_state = chart_config
-        if clear_col.button("Clear chart", key="clear_descriptive_chart",
-                disabled=st.session_state.chart_state is None, use_container_width=True, type="secondary"):
-            st.session_state.chart_state = None
-        saved_chart = st.session_state.chart_state
-        if saved_chart:
-            fig, ax = plt.subplots()
-            if saved_chart["type"] == "Scatter plot":
-                x_name, y_name = saved_chart["x"], saved_chart["y"]
-                ax.scatter(df[x_name], df[y_name]); ax.set_xlabel(x_name); ax.set_ylabel(y_name)
-                ax.set_title(f"{y_name} against {x_name}")
-            else:
-                variables = saved_chart["variables"]
-                if saved_chart["type"] == "Time/line plot": df[variables].plot(ax=ax)
-                elif saved_chart["type"] == "Histogram": df[variables].plot.hist(ax=ax, alpha=0.6)
-                else: df[variables].plot.box(ax=ax)
-                ax.set_title(saved_chart["type"])
-            fig.tight_layout(); st.pyplot(fig); plt.close(fig)
+        render_preliminary_workspace(
+            df,
+            display_dataframe=display_dataframe,
+            analysis_action_buttons=analysis_action_buttons,
+            register_output=register_output,
+            make_unique_name=make_unique_name,
+            display_exception=display_exception,
+        )
 
 # ---------------------------------------------------------------------------
 # 4. REGRESSION
