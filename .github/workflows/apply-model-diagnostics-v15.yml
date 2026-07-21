@@ -1,0 +1,82 @@
+name: Apply model-specific diagnostics v1.5
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-model-diagnostics-v15.yml'
+      - '.update/model_diagnostics_v15.py.gz.b64'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install model-specific diagnostics
+        shell: bash
+        run: |
+          base64 -d .update/model_diagnostics_v15.py.gz.b64 | gzip -d > pages/8_Diagnostics.py
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('app.py')
+          text = path.read_text(encoding='utf-8')
+          text = re.sub(r'APP_VERSION = "[^"]+"', 'APP_VERSION = "1.5.0"', text, count=1)
+
+          old = '''                if method in {"OLS", "WLS", "GLS"}:
+                      diagnostic, vif = ols_diagnostics(results, int(hac_lags))
+                      st.subheader("Diagnostics")
+                      display_dataframe(diagnostic, use_container_width=True)
+                      st.subheader("Variance inflation factors")
+                      display_dataframe(vif, use_container_width=True)
+                      st.session_state.results[result_name + "_diagnostics"] = diagnostic
+                      st.session_state.results[result_name + "_vif"] = vif
+          '''
+          if old not in text:
+              old = '''                if method in {"OLS", "WLS", "GLS"}:
+                    diagnostic, vif = ols_diagnostics(results, int(hac_lags))
+                    st.subheader("Diagnostics")
+                    display_dataframe(diagnostic, use_container_width=True)
+                    st.subheader("Variance inflation factors")
+                    display_dataframe(vif, use_container_width=True)
+                    st.session_state.results[result_name + "_diagnostics"] = diagnostic
+                    st.session_state.results[result_name + "_vif"] = vif
+          '''
+          new = '''                if method in {"OLS", "WLS", "GLS"}:
+                    st.info(
+                        "Use the Model Diagnostics page for linear-model residual, "
+                        "heteroskedasticity, serial-correlation, stability, VIF and influence checks."
+                    )
+          '''
+          if old not in text:
+              raise SystemExit('Automatic regression diagnostics block was not found.')
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+          grep -q 'APP_VERSION = "1.5.0"' app.py
+          grep -q 'Model-Specific Diagnostics' pages/8_Diagnostics.py
+          grep -q 'Binary response' pages/8_Diagnostics.py
+          grep -q 'Count regression' pages/8_Diagnostics.py
+          python -m py_compile app.py pages/8_Diagnostics.py
+
+      - name: Commit consolidated diagnostics
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.py pages/8_Diagnostics.py
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+          else
+            git commit -m 'Consolidate and tailor model diagnostics'
+            git push origin main
+          fi
