@@ -4,7 +4,7 @@
 
 ### Econometric analysis without terminal commands
 
-**Upload data · transform variables · estimate models · run diagnostics · export reproducible Python code**
+**Upload data · transform variables · estimate models · run model-specific diagnostics · export reproducible Python code**
 
 <br />
 
@@ -15,7 +15,7 @@
 
 <br />
 
-A browser-based econometrics workspace that turns Python's statistical ecosystem into a guided graphical interface. Build, estimate, diagnose and export a complete reproducible analysis without writing terminal commands.
+A browser-based econometrics workspace that turns Python's statistical ecosystem into a guided graphical interface. Build, estimate, diagnose and export a reproducible analysis without writing terminal commands.
 
 </div>
 
@@ -28,19 +28,19 @@ A browser-based econometrics workspace that turns Python's statistical ecosystem
 <td width="33%" valign="top">
 
 ### 🧭 Guided workflow
-Upload a dataset, select variables and configure estimators through clear forms and menus.
+Upload a dataset, prepare variables and configure estimators through structured forms and menus.
 
 </td>
 <td width="33%" valign="top">
 
-### 🧪 Serious econometrics
-Run cross-sectional, time-series, panel, instrumental-variable and volatility models.
+### 🧪 Model-aware diagnostics
+Diagnostic tests are generated from the exact fitted estimation result and automatically adapt to the estimator.
 
 </td>
 <td width="33%" valign="top">
 
 ### ♻️ Reproducible by design
-Download the exact generated Python code, cleaned data, results and model settings.
+Download the generated Python code, cleaned data, result tables and recorded model settings.
 
 </td>
 </tr>
@@ -48,15 +48,14 @@ Download the exact generated Python code, cleaned data, results and model settin
 
 ## 🚀 Highlights in version 1.5.0
 
-- **Dedicated Diagnostics page** with selectable residual, specification, stability, multicollinearity and influence tests
-- **True post-estimation diagnostics** use the exact saved fitted model rather than estimating a duplicate model\n- **Estimator-specific test menus** automatically adapt to linear, binary, count, time-series, VAR/VECM, panel, IV and volatility results\n- **Linked diagnostic exports** are attached to their parent model and removed automatically when the model is cleared\n- **Persistent navigation** keeps you on the same workspace and sub-method after clearing results, changing dark mode or triggering a rerun
-- **Reliable dark tables** replace the light DataFrame canvas with high-contrast scrollable tables in dark mode
-- **Readable recorded settings** use a dark-compatible JSON code view
-- **Persistent charts with a Clear chart button** so figures remain visible until deliberately removed
-- **Immediate clear buttons** beside each analysis action
-- **Variable renaming** with recorded-code and result-label updates
-- **Selective export control** for removing unwanted analyses
-- **Complete reproduction package** containing code, data, outputs and settings
+- **True post-estimation diagnostics** use the exact saved fitted model instead of estimating a duplicate model.
+- **Estimator-specific diagnostic suites** adapt to linear, binary, count, ARDL/ARIMA, VAR/VECM, panel, IV and volatility models.
+- **Linked diagnostic exports** attach each diagnostic run to its parent estimation.
+- **Automatic cleanup** removes linked diagnostics when their parent model is cleared.
+- **No duplicate regression diagnostics** inside the estimation page.
+- **Persistent navigation and charts** remain in place after reruns and clear actions.
+- **Light and dark modes** cover tables, settings, charts, forms and result displays.
+- **Selective export control** removes unwanted work from the final reproduction package.
 
 ## 🧰 Econometric coverage
 
@@ -71,36 +70,64 @@ Download the exact generated Python code, cleaned data, results and model settin
 | **Panel data** | Pooled OLS, fixed effects, random effects, first differences, between and Fama–MacBeth |
 | **Endogeneity** | 2SLS, LIML and IV-GMM |
 | **Volatility** | ARCH, GARCH, EGARCH, FIGARCH, APARCH and HARCH |
-| **Diagnostics** | Durbin–Watson, Jarque–Bera, D’Agostino–Pearson, Breusch–Pagan, White, Breusch–Godfrey, Ljung–Box, ARCH LM, Ramsey RESET, Rainbow, CUSUM, condition number, VIF, Cook’s distance, leverage and DFFITS |
+| **Diagnostics** | Exact-result residual, specification, stability, classification, count, first-stage, overidentification and volatility diagnostics |
 
-## 🧪 Diagnostic testing workspace
+## 🧪 Post-estimation diagnostic workflow
 
-Open **Diagnostics** from Streamlit’s page navigation. The page uses the dataset already loaded in the main app and supports OLS, WLS and GLS diagnostic models.
+Open **Diagnostics** from Streamlit's page navigation after estimating a model.
+
+```text
+Estimate a model
+      ↓
+The exact fitted result is saved in the session
+      ↓
+Open Diagnostics
+      ↓
+Select the previously estimated model
+      ↓
+Run only tests appropriate for that estimator
+      ↓
+Export or clear the linked diagnostic run
+```
 
 <table>
 <tr>
 <td width="33%" valign="top">
 
-### Residual behaviour
-Normality, serial-correlation, heteroskedasticity and ARCH-effect tests with decisions at a selected significance level.
+### Linear models
+Normality, serial correlation, heteroskedasticity, ARCH effects, RESET, Rainbow, CUSUM, VIF, condition number and influence measures.
 
 </td>
 <td width="33%" valign="top">
 
-### Specification and stability
-Ramsey RESET, Rainbow linearity, CUSUM stability and condition-number reporting.
+### Discrete and count models
+Classification metrics, ROC AUC, grouped probability fit, Pearson and deviance residuals, dispersion and zero-count checks.
 
 </td>
 <td width="33%" valign="top">
 
-### Influence and collinearity
-VIF, tolerance, studentized residuals, leverage, Cook’s distance, DFFITS and flagged observations.
+### Time-series and volatility
+Ljung–Box, ARCH effects, residual normality, VAR/VECM whiteness and stability, and standardized GARCH residual tests.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### Panel models
+Residual behaviour, cross-sectional dependence and entity-level residual-variance checks based on the fitted panel result.
+
+</td>
+<td width="50%" valign="top" colspan="2">
+
+### Instrumental variables
+First-stage diagnostics, endogeneity tests and available overidentification tests from the fitted IV result.
 
 </td>
 </tr>
 </table>
 
-Diagnostic runs remain visible after reruns, support dark mode, include residual plots, and have a **Clear latest diagnostics** button. Retained diagnostic results and generated Python code are automatically included in the main export package.
+Diagnostic runs remain visible after reruns, support dark mode, include appropriate plots and have a **Clear latest diagnostic run** button.
 
 ## 🖥️ Interface workflow
 
@@ -111,9 +138,11 @@ Prepare and rename variables
     ↓
 Choose an econometric method
     ↓
-Estimate and run diagnostic tests
+Estimate the model
     ↓
-Clear unwanted analyses or charts immediately
+Run model-specific post-estimation diagnostics
+    ↓
+Clear unwanted analyses, diagnostics or charts
     ↓
 Export code, cleaned data, tables and settings
 ```
@@ -157,7 +186,7 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Streamlit opens the application in your browser. Select **Diagnostics** from the page navigation when you need the full diagnostic suite.
+Streamlit opens the application in your browser. Estimate a model in the main workspace, then select **Diagnostics** from the page navigation.
 
 ## ☁️ Deploy on Streamlit Community Cloud
 
@@ -167,7 +196,7 @@ Streamlit opens the application in your browser. Select **Diagnostics** from the
 4. Set the entry point to `app.py`.
 5. Click **Deploy**.
 
-The repository already contains `.streamlit/config.toml`, `requirements.txt` and the Streamlit `pages` directory.
+The repository contains `.streamlit/config.toml`, `requirements.txt` and the Streamlit `pages` directory.
 
 ## 📦 Reproduction package
 
@@ -184,7 +213,7 @@ econometric_reproduction_package/
 └── text_results/
 ```
 
-Use the clear button beside an analysis, the **Clear latest diagnostics** button, or the export manager to remove work that should not appear in the final package.
+Use the clear control beside an analysis, the **Clear latest diagnostic run** button, or the export manager to remove work that should not appear in the final package.
 
 ## 🧱 Technology
 
@@ -205,7 +234,7 @@ Econometrics Studio assists with computation and reproducibility; it does not re
 - integration orders and cointegration requirements;
 - sample size and lag structure;
 - residual diagnostics and model stability; and
-- whether the estimator is appropriate for the research design.
+- whether the estimator and diagnostic tests are appropriate for the research design.
 
 ---
 
