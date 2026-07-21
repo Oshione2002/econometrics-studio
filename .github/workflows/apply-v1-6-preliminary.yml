@@ -1,0 +1,49 @@
+name: Apply Econometrics Studio v1.6 preliminary workspace
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.update/trigger_v16.txt'
+      - '.update/upgrade_v16.py.gz.b64'
+      - '.update/preliminary_v16.py.gz.b64'
+      - '.github/workflows/apply-v1-6-preliminary.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decode preliminary module and upgrade application
+        shell: bash
+        run: |
+          base64 -d .update/preliminary_v16.py.gz.b64 | gzip -d > preliminary.py
+          base64 -d .update/upgrade_v16.py.gz.b64 | gzip -d > /tmp/upgrade_v16.py
+          python /tmp/upgrade_v16.py
+          grep -q 'APP_VERSION = "1.6.0"' app.py
+          grep -q '3. Preliminary' app.py
+          grep -q 'Pesaran-Yamagata slope heterogeneity test' preliminary.py
+          grep -q 'CIPS panel unit-root test' preliminary.py
+          grep -q 'Westerlund panel cointegration test' preliminary.py
+          python -m py_compile app.py preliminary.py
+
+      - name: Commit preliminary-analysis upgrade
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.py preliminary.py requirements.txt README.md
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+          else
+            git commit -m 'Add comprehensive preliminary analysis workspace'
+            git push origin main
+          fi
