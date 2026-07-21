@@ -10,7 +10,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.49%2B-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)
-![Version](https://img.shields.io/badge/version-1.3.0-1F4E78?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-1.5.0-1F4E78?style=for-the-badge)
 ![License](https://img.shields.io/badge/license-research%20use-2EA44F?style=for-the-badge)
 
 <br />
@@ -46,10 +46,10 @@ Download the exact generated Python code, cleaned data, results and model settin
 </tr>
 </table>
 
-## 🚀 Highlights in version 1.3.0
+## 🚀 Highlights in version 1.5.0
 
 - **Dedicated Diagnostics page** with selectable residual, specification, stability, multicollinearity and influence tests
-- **Persistent navigation** keeps you on the same workspace and sub-method after clearing results, changing dark mode or triggering a rerun
+- **True post-estimation diagnostics** use the exact saved fitted model rather than estimating a duplicate model\n- **Estimator-specific test menus** automatically adapt to linear, binary, count, time-series, VAR/VECM, panel, IV and volatility results\n- **Linked diagnostic exports** are attached to their parent model and removed automatically when the model is cleared\n- **Persistent navigation** keeps you on the same workspace and sub-method after clearing results, changing dark mode or triggering a rerun
 - **Reliable dark tables** replace the light DataFrame canvas with high-contrast scrollable tables in dark mode
 - **Readable recorded settings** use a dark-compatible JSON code view
 - **Persistent charts with a Clear chart button** so figures remain visible until deliberately removed
@@ -213,6 +213,6 @@ Econometrics Studio assists with computation and reproducibility; it does not re
 
 ### Built for transparent, reproducible econometric research
 
-**Econometrics Studio · Version 1.3.0**
+**Econometrics Studio · Version 1.5.0**
 
 </div>

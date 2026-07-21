@@ -62,7 +62,7 @@ except Exception as exc:
     LINEARMODELS_IMPORT_ERROR = str(exc)
 
 
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.5.0"
 DEFAULT_DATA_FILE = "cleaned_dataset.csv"
 
 st.set_page_config(
@@ -84,6 +84,9 @@ def init_state() -> None:
         "results": {},
         "settings_log": [],
         "slot_outputs": {},
+        "model_registry": {},
+        "diagnostic_runs": {},
+        "diagnostic_page_state": None,
         "dark_mode": False,
         "active_main_page": "1. Data",
         "active_ts_page": "Unit roots",
@@ -107,6 +110,9 @@ def clear_project() -> None:
         "results",
         "settings_log",
         "slot_outputs",
+        "model_registry",
+        "diagnostic_runs",
+        "diagnostic_page_state",
         "_active_registration_slot",
         "last_error",
     ]:
@@ -184,6 +190,36 @@ def register_output(
     add_history(f"Completed {name}")
 
 
+def register_fitted_model(
+    name: str,
+    family: str,
+    estimator: str,
+    fitted_result: Any,
+    *,
+    sample: pd.DataFrame | pd.Series | None = None,
+    metadata: dict[str, Any] | None = None,
+    code: str = "",
+) -> None:
+    # Store the exact fitted result for model-specific post-estimation diagnostics.
+    if sample is None:
+        stored_sample = None
+    elif hasattr(sample, "copy"):
+        stored_sample = sample.copy()
+    else:
+        stored_sample = sample
+
+    st.session_state.model_registry[name] = {
+        "name": name,
+        "family": family,
+        "estimator": estimator,
+        "result": fitted_result,
+        "sample": stored_sample,
+        "metadata": metadata or {},
+        "code": textwrap.dedent(code).strip(),
+        "created": datetime.now().isoformat(timespec="seconds"),
+    }
+
+
 def _replace_text_in_object(value: Any, old: str, new: str) -> Any:
     """Recursively update variable references stored in settings and history."""
     if isinstance(value, str):
@@ -248,6 +284,9 @@ def rename_variable_everywhere(old: str, new: str) -> None:
     st.session_state.history = _replace_text_in_object(
         st.session_state.history, old, new
     )
+    st.session_state.model_registry = _replace_text_in_object(
+        st.session_state.model_registry, old, new
+    )
 
     st.session_state.results = {
         key: _rename_result_labels(value, old, new)
@@ -304,6 +343,18 @@ def remove_recorded_analyses(selected_names: list[str]) -> int:
     selected = set(selected_names)
     if not selected:
         return 0
+
+    # Clearing a fitted model also clears diagnostic runs attached to that model.
+    linked_diagnostics = {
+        diagnostic_name
+        for diagnostic_name, parent_name in st.session_state.diagnostic_runs.items()
+        if parent_name in selected
+    }
+    selected.update(linked_diagnostics)
+
+    for name in list(selected):
+        st.session_state.model_registry.pop(name, None)
+        st.session_state.diagnostic_runs.pop(name, None)
 
     all_names = registered_analysis_names()
 
@@ -951,6 +1002,10 @@ if active_main_page == '1. Data':
                 st.session_state.code_blocks = []
                 st.session_state.results = {}
                 st.session_state.settings_log = []
+                st.session_state.slot_outputs = {}
+                st.session_state.model_registry = {}
+                st.session_state.diagnostic_runs = {}
+                st.session_state.diagnostic_page_state = None
                 add_history(f"Uploaded {uploaded.name}")
                 st.success("Dataset loaded.")
             except Exception as exc:
@@ -1488,15 +1543,38 @@ model = {model_code}
                     summary,
                 )
                 st.session_state.results[result_name + "_summary"] = summary
-
-                if method in {"OLS", "WLS", "GLS"}:
-                    diagnostic, vif = ols_diagnostics(results, int(hac_lags))
-                    st.subheader("Diagnostics")
-                    display_dataframe(diagnostic, use_container_width=True)
-                    st.subheader("Variance inflation factors")
-                    display_dataframe(vif, use_container_width=True)
-                    st.session_state.results[result_name + "_diagnostics"] = diagnostic
-                    st.session_state.results[result_name + "_vif"] = vif
+                family = {
+                    "OLS": "linear",
+                    "WLS": "linear",
+                    "GLS": "linear",
+                    "Robust linear model": "linear",
+                    "Quantile regression": "linear",
+                    "Logit": "binary",
+                    "Probit": "binary",
+                    "Poisson": "count",
+                    "Negative binomial": "count",
+                }[method]
+                register_fitted_model(
+                    result_name,
+                    family,
+                    method,
+                    results,
+                    sample=sample,
+                    metadata={
+                        "dependent": y,
+                        "explanatory": x,
+                        "constant": add_constant,
+                        "cov_type": cov_type,
+                        "weight": weight_column,
+                        "quantile": float(quantile),
+                        "exog_names": list(getattr(results.model, "exog_names", [])),
+                    },
+                    code=code,
+                )
+                st.info(
+                    "Use the Diagnostics page to run tests based on this exact fitted model. "
+                    "Diagnostics are no longer duplicated inside the estimation page."
+                )
             except Exception as exc:
                 display_exception(exc)
 
@@ -1750,6 +1828,21 @@ print(results.summary())
                         text,
                     )
                     st.session_state.results[result_name + "_summary"] = text
+                    register_fitted_model(
+                        result_name,
+                        "ardl",
+                        "ARDL",
+                        results,
+                        sample=sample,
+                        metadata={
+                            "dependent": y,
+                            "explanatory": x,
+                            "order": model.ardl_order,
+                            "trend": trend,
+                            "causal": causal,
+                        },
+                        code=code,
+                    )
 
                     if run_bounds:
                         try:
@@ -1775,6 +1868,9 @@ print(results.summary())
                             st.session_state.results[result_name + "_bounds"] = bounds_table
                             st.session_state.results[result_name + "_bounds_critical"] = bounds.crit_vals
                             st.session_state.results[result_name + "_UECM_summary"] = summary_text(uecm_results)
+                            if result_name in st.session_state.model_registry:
+                                st.session_state.model_registry[result_name]["uecm_result"] = uecm_results
+                                st.session_state.model_registry[result_name]["bounds_result"] = bounds
                             st.session_state.code_blocks.append(
                                 {
                                     "name": result_name + "_UECM_bounds",
@@ -1868,6 +1964,21 @@ print(results.summary())
                         text,
                     )
                     st.session_state.results[name + "_summary"] = text
+                    register_fitted_model(
+                        name,
+                        "arima",
+                        "ARIMA/SARIMA",
+                        results,
+                        sample=sample,
+                        metadata={
+                            "series": y,
+                            "exog": exog_vars,
+                            "order": (p, d, q),
+                            "seasonal_order": seasonal_order,
+                            "trend": trend_arg,
+                        },
+                        code=code,
+                    )
                 except Exception as exc:
                     display_exception(exc)
 
@@ -1923,6 +2034,15 @@ print("Stable:", results.is_stable())
                         name = make_unique_name("VAR")
                         register_output(name, roots, code, {"variables": variables}, text)
                         st.session_state.results[name + "_summary"] = text
+                        register_fitted_model(
+                            name,
+                            "var",
+                            "VAR",
+                            results,
+                            sample=sample,
+                            metadata={"variables": variables, "lag_order": int(results.k_ar)},
+                            code=code,
+                        )
                     elif multivariate_method == "Johansen test":
                         result = coint_johansen(sample, det_order=det_order, k_ar_diff=k_ar_diff)
                         table = pd.DataFrame(
@@ -1981,6 +2101,20 @@ print(results.summary())
                         register_output(name, alpha, code, {"variables": variables}, text)
                         st.session_state.results[name + "_beta"] = beta
                         st.session_state.results[name + "_summary"] = text
+                        register_fitted_model(
+                            name,
+                            "vecm",
+                            "VECM",
+                            results,
+                            sample=sample,
+                            metadata={
+                                "variables": variables,
+                                "lagged_differences": k_ar_diff,
+                                "cointegration_rank": coint_rank,
+                                "deterministic": deterministic,
+                            },
+                            code=code,
+                        )
                 except Exception as exc:
                     display_exception(exc)
 
@@ -2157,6 +2291,22 @@ print(results.summary)
                             text,
                         )
                         st.session_state.results[name + "_summary"] = text
+                        register_fitted_model(
+                            name,
+                            "panel",
+                            panel_method,
+                            results,
+                            sample=sample,
+                            metadata={
+                                "entity": entity,
+                                "time": time,
+                                "dependent": y,
+                                "explanatory": x,
+                                "constant": panel_constant,
+                                "covariance": panel_cov,
+                            },
+                            code=code,
+                        )
                     except Exception as exc:
                         display_exception(exc)
 
@@ -2236,6 +2386,22 @@ print(results.summary)
                             text,
                         )
                         st.session_state.results[name + "_summary"] = text
+                        register_fitted_model(
+                            name,
+                            "iv",
+                            iv_method,
+                            results,
+                            sample=sample,
+                            metadata={
+                                "dependent": y,
+                                "exogenous": exog,
+                                "endogenous": endog,
+                                "instruments": instruments,
+                                "constant": iv_constant,
+                                "covariance": iv_cov,
+                            },
+                            code=code,
+                        )
                     except Exception as exc:
                         display_exception(exc)
 
@@ -2333,6 +2499,25 @@ print(results.summary())
                         text,
                     )
                     st.session_state.results[name + "_summary"] = text
+                    register_fitted_model(
+                        name,
+                        "volatility",
+                        vol_model,
+                        results,
+                        sample=series,
+                        metadata={
+                            "series": y,
+                            "mean": mean_model,
+                            "lags": lags,
+                            "volatility": vol_model,
+                            "p": p,
+                            "o": o,
+                            "q": q,
+                            "distribution": distribution,
+                            "rescaled": rescale,
+                        },
+                        code=code,
+                    )
                 except Exception as exc:
                     display_exception(exc)
 
