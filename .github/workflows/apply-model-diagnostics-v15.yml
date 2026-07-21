@@ -80,3 +80,5 @@ jobs:
             git commit -m 'Consolidate and tailor model diagnostics'
             git push origin main
           fi
+
+# retrigger after workflow installation
